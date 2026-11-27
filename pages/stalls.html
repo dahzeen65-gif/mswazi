@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Approved Stalls — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/customer.css" />
+  <style>
+    .nav { background: var(--navy-950); color: #fff; border-bottom: 3px solid var(--amber-500); padding: 0.8rem 0; position: sticky; top: 0; z-index: 30; }
+    .nav-inner { max-width: 1040px; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+    .nav-links { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .nav-links a { color: #e2e8f0; text-decoration: none; font-size: 0.84rem; font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 999px; }
+    .nav-links a.active { background: var(--amber-500); color: #fff; }
+    .filter-bar { display: grid; grid-template-columns: 1fr; gap: 0.65rem; margin-bottom: 1rem; }
+    @media (min-width: 680px) { .filter-bar { grid-template-columns: 220px 220px 1fr auto; } }
+    .stall-desc { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.4rem; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="../index.html" style="color:#fff; text-decoration:none; font-weight:800; letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">SHOP</span></a>
+      <div class="nav-links">
+        <a href="./stalls.html" class="active">Stalls</a>
+        <a href="./cart.html">Cart</a>
+        <a href="./orders.html">Orders</a>
+        <a href="./customer-profile.html">Account</a>
+        <span id="currencyMount"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:0.75rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900);">Neighbourhood Vendor Stalls</h1>
+        <p style="font-size:0.86rem; color:var(--muted);">Approved stalls are shown first with live locations on the map</p>
+      </div>
+      <span class="badge badge-active" id="areaBadge">Active Area</span>
+    </div>
+
+    <div class="card" style="padding:1rem; margin-bottom:1.25rem;">
+      <div class="filter-bar">
+        <select class="field" id="areaSelect"></select>
+        <select class="field" id="categorySelect">
+          <option value="All">All Business Categories</option>
+          <option value="Grocery & Fresh Produce">Grocery &amp; Fresh Produce</option>
+          <option value="Food & Restaurants">Food &amp; Restaurants</option>
+          <option value="General Retail">General Retail</option>
+          <option value="Hardware & Building Supplies">Hardware &amp; Building Supplies</option>
+          <option value="Fashion & Clothing">Fashion &amp; Clothing</option>
+          <option value="Tours & Safaris">Tours &amp; Safaris</option>
+        </select>
+        <input class="field" type="search" id="searchInput" placeholder="Search stall name or item..." />
+        <button class="btn btn-outline" id="nearbyBtn">Nearby: Off</button>
+      </div>
+      <div style="font-size:0.8rem; color:var(--muted);" id="countLabel">Loading stalls...</div>
+    </div>
+
+    <div class="card" style="padding:0.75rem; margin-bottom:1.25rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.55rem;">
+        <strong style="font-size:0.88rem; color:var(--navy-900);">Live Stall &amp; Rider Map</strong>
+        <span style="font-size:0.76rem; color:var(--muted);">Updates automatically when stalls or riders move</span>
+      </div>
+      <div id="stallsMap" style="height:310px; width:100%; border-radius:12px; z-index:1;"></div>
+    </div>
+
+    <div class="shop-grid" id="stallsContainer"></div>
+  </main>
+
+  <script type="module">
+    import { buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+    import { fetchServiceAreas, getActiveAreaSlugs, getSavedAreaSlug, saveAreaSlug } from "../js/location.js";
+    import { fetchApprovedStalls } from "../js/vendors.js";
+    import { createMswaziMap } from "../js/map.js";
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("stallsCurrencySelect");
+    document.getElementById("stallsCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      render(false);
+    });
+
+    const areas = await fetchServiceAreas();
+    let selectedArea = getSavedAreaSlug();
+    if (!areas.some((a) => a.slug === selectedArea)) {
+      selectedArea = areas[0]?.slug || "miritini";
+    }
+    let includeNearby = false;
+    let selectedCategory = "All";
+    let searchText = "";
+    let latestStalls = [];
+
+    const areaSelect = document.getElementById("areaSelect");
+    const categorySelect = document.getElementById("categorySelect");
+    const searchInput = document.getElementById("searchInput");
+    const nearbyBtn = document.getElementById("nearbyBtn");
+    const areaBadge = document.getElementById("areaBadge");
+    const countLabel = document.getElementById("countLabel");
+    const container = document.getElementById("stallsContainer");
+
+    const liveMap = await createMswaziMap("stallsMap");
+    await liveMap.loadInitialRiderPings();
+    liveMap.subscribeRealtime({ onStallChange: () => render() });
+
+    areaSelect.innerHTML = areas
+      .map((a) => `<option value="${a.slug}">${a.name} (${a.sub_county})${a.is_active ? "" : " · Inactive"}</option>`)
+      .join("");
+    areaSelect.value = selectedArea;
+
+    areaSelect.addEventListener("change", (e) => {
+      selectedArea = e.target.value;
+      saveAreaSlug(selectedArea);
+      render(true);
+    });
+
+    categorySelect.addEventListener("change", (e) => {
+      selectedCategory = e.target.value;
+      render(false);
+    });
+
+    searchInput.addEventListener("input", (e) => {
+      searchText = e.target.value;
+      render(false);
+    });
+
+    nearbyBtn.addEventListener("click", () => {
+      includeNearby = !includeNearby;
+      nearbyBtn.textContent = `Nearby: ${includeNearby ? "On" : "Off"}`;
+      render(false);
+    });
+
+    window.locateStallOnMap = (stallId, idx) => {
+      const stall = latestStalls.find((s) => s.id === stallId);
+      if (!stall) return;
+      document.getElementById("stallsMap").scrollIntoView({ behavior: "smooth", block: "center" });
+      liveMap.focusStall(stall, idx);
+    };
+
+    async function render(shouldFocusArea = false) {
+      const currentArea = areas.find((a) => a.slug === selectedArea) || areas[0];
+      areaBadge.textContent = currentArea?.is_active ? `${currentArea.name} · Active` : `${currentArea?.name || "Area"} · Inactive`;
+      areaBadge.classList.toggle("badge-active", Boolean(currentArea?.is_active));
+
+      liveMap.renderAreas(areas, selectedArea);
+      if (shouldFocusArea && currentArea) {
+        liveMap.focusArea(currentArea);
+      }
+
+      const activeSlugs = getActiveAreaSlugs(areas, selectedArea, includeNearby);
+      const stalls = await fetchApprovedStalls({
+        areaSlugs: activeSlugs,
+        category: selectedCategory,
+        search: searchText
+      });
+      latestStalls = stalls;
+
+      liveMap.renderStalls(stalls, (stall) => {
+        window.location.href = `./vendor-store.html?vendor=${encodeURIComponent(stall.slug || stall.id)}`;
+      });
+
+      countLabel.textContent = `${stalls.length} approved stall(s) in scope`;
+
+      if (!currentArea?.is_active) {
+        container.innerHTML = `<div class="card stall-card" style="grid-column:1/-1;"><strong>${currentArea?.name || "This area"} is not active yet</strong><span class="stall-desc">Select an activated area such as Miritini, Mikindani, or Changamwe to browse live stalls.</span></div>`;
+        return;
+      }
+
+      if (stalls.length === 0) {
+        container.innerHTML = `<div class="card stall-card" style="grid-column:1/-1;"><strong>No matching approved stalls</strong><span class="stall-desc">Try enabling nearby active areas or clearing your search.</span></div>`;
+        return;
+      }
+
+      container.innerHTML = stalls
+        .map(
+          (v, idx) => `
+          <article class="card stall-card">
+            <div class="stall-card-header">
+              <span class="badge">${v.category}</span>
+              <span class="badge badge-active">${v.plan_tier === "SPOTLIGHT" ? "Spotlight · Open" : v.is_open ? "Open · Live" : "Closed"}</span>
+            </div>
+            <div class="stall-card-title">${v.business_name}</div>
+            <div class="stall-card-meta">Area: ${v.area_slug} · ${v.opening_hours || "Daily"}</div>
+            <p class="stall-desc">${v.description || "Independent neighbourhood stall on MSWAZI."}</p>
+            <div style="margin-top:auto; display:flex; gap:0.45rem;">
+              <button class="btn btn-outline" onclick="locateStallOnMap('${v.id}', ${idx})">Map Pin</button>
+              <a href="./vendor-store.html?vendor=${encodeURIComponent(v.slug || v.id)}" class="btn btn-amber" style="flex:1;">Enter Stall →</a>
+            </div>
+          </article>
+        `
+        )
+        .join("");
+    }
+
+    render(true);
+  </script>
+</body>
+</html>

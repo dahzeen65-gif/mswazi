@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin Moderation &amp; Subscriptions — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <style>
+    .sub-pill { display: inline-block; background: #eff6ff; color: #1e3a8a; font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-top: 0.25rem; }
+    .spotlight-pill { background: #fef3c7; color: #92400e; }
+    .admin-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+  </style>
+</head>
+<body>
+  <header class="dash-topbar">
+    <div class="dash-topbar-inner">
+      <strong style="letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">ADMIN</span></strong>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <span id="currencyMount"></span>
+        <a href="./stalls.html" class="btn btn-outline">Open Stalls View</a>
+        <a href="./customer-profile.html" class="btn btn-amber">Account</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900);">Admin Operations, Stalls &amp; Subscriptions</h1>
+        <p style="font-size:0.84rem; color:var(--muted);">Review stall applications, monitor launch grace &amp; subscription plans, toggle service areas, and track live activity</p>
+      </div>
+    </div>
+
+    <div class="card dash-panel" style="margin-bottom:1.1rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.55rem;">
+        <strong style="font-size:0.95rem; color:var(--navy-900);">Live Platform Map (Service Areas, Stalls &amp; Riders)</strong>
+        <span style="font-size:0.76rem; color:var(--muted);">Real-time Supabase updates</span>
+      </div>
+      <div id="adminMap" class="map-frame" style="height:290px;"></div>
+    </div>
+
+    <div class="dash-split">
+      <section class="card dash-panel">
+        <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Stall Approvals &amp; Subscription Plans</h2>
+        <div id="adminVendorsList"></div>
+      </section>
+
+      <section class="card dash-panel">
+        <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Service Areas</h2>
+        <div id="adminAreasList"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "../js/supabase.js";
+    import { MSWAZI_CONFIG } from "../js/config.js";
+    import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+    import { fetchServiceAreas } from "../js/location.js";
+    import { createMswaziMap } from "../js/map.js";
+    import { updateVendorSubscriptionPlan } from "../js/vendors.js";
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("adminCurrencySelect");
+    document.getElementById("adminCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      loadAdminData();
+    });
+
+    const adminMap = await createMswaziMap("adminMap");
+    await adminMap.loadInitialRiderPings();
+    adminMap.subscribeRealtime({ onStallChange: () => loadAdminData() });
+
+    window.setVendorApproval = async (vendorId, status) => {
+      await supabase.from("vendors").update({ approval_status: status }).eq("id", vendorId);
+      showToast(`Vendor marked ${status}`);
+      await loadAdminData();
+    };
+
+    window.approveRenewal = async (vendorId, planTier, billingCycle) => {
+      try {
+        await updateVendorSubscriptionPlan(vendorId, { planTier, billingCycle });
+        showToast(`Subscription renewed (${planTier} · ${billingCycle})`);
+        await loadAdminData();
+      } catch (err) {
+        showToast(err.message);
+      }
+    };
+
+    window.toggleAreaActive = async (slug, currentActive) => {
+      await supabase.from("service_areas").update({ is_active: !currentActive }).eq("slug", slug);
+      showToast(`Area ${slug} updated`);
+      await loadAdminData();
+    };
+
+    function getPlanPriceLabel(planTier, billingCycle) {
+      const { standardWeeklyKes, standardMonthlyKes, spotlightWeeklyKes, spotlightMonthlyKes } = MSWAZI_CONFIG.stallPlans;
+      if (planTier === "SPOTLIGHT") {
+        return billingCycle === "WEEKLY" ? formatKES(spotlightWeeklyKes) + "/wk" : formatKES(spotlightMonthlyKes) + "/mo";
+      }
+      return billingCycle === "WEEKLY" ? formatKES(standardWeeklyKes) + "/wk" : formatKES(standardMonthlyKes) + "/mo";
+    }
+
+    async function loadAdminData() {
+      const areas = await fetchServiceAreas();
+      adminMap.renderAreas(areas, MSWAZI_CONFIG.defaultAreaSlug);
+
+      const { data: vendors } = await supabase
+        .from("vendors")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      const vendorList = Array.isArray(vendors) ? vendors : [];
+      adminMap.renderStalls(vendorList.filter((v) => v.approval_status === "APPROVED"));
+
+      const vEl = document.getElementById("adminVendorsList");
+      vEl.innerHTML = vendorList.length
+        ? vendorList
+            .map((v) => {
+              const tier = v.plan_tier || "STANDARD";
+              const cycle = v.billing_cycle || "MONTHLY";
+              const subStatus = v.subscription_status || "LAUNCH_FREE";
+              const refText = v.last_payment_ref ? v.last_payment_ref : "None logged";
+              const priceLabel = getPlanPriceLabel(tier, cycle);
+              const expiryLabel = v.subscription_expires_at
+                ? new Date(v.subscription_expires_at).toLocaleDateString()
+                : "3-mo launch window";
+
+              return `
+                <div class="dash-row">
+                  <div>
+                    <strong style="font-size:0.9rem; color:var(--navy-900);">${v.business_name}</strong>
+                    <div style="font-size:0.76rem; color:var(--muted);">${v.category} · ${v.area_slug} · Approval: <strong>${v.approval_status}</strong></div>
+                    <div style="margin-top:0.2rem;">
+                      <span class="sub-pill ${tier === "SPOTLIGHT" ? "spotlight-pill" : ""}">
+                        ${tier} · ${cycle} (${priceLabel}) · ${subStatus}
+                      </span>
+                    </div>
+                    <div style="font-size:0.74rem; color:var(--navy-800); margin-top:0.2rem;">
+                      Renewal Ref: <strong>${refText}</strong> · Valid until: ${expiryLabel}
+                    </div>
+                  </div>
+                  <div class="admin-actions">
+                    <button class="btn btn-amber" style="padding:0.35rem 0.65rem; font-size:0.75rem;" onclick="setVendorApproval('${v.id}', 'APPROVED')">Approve</button>
+                    <button class="btn btn-outline" style="padding:0.35rem 0.65rem; font-size:0.75rem;" onclick="approveRenewal('${v.id}', '${tier}', '${cycle}')">Confirm Renewal</button>
+                    <button class="btn btn-outline" style="padding:0.35rem 0.65rem; font-size:0.75rem;" onclick="setVendorApproval('${v.id}', 'REJECTED')">Reject</button>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")
+        : `<p style="font-size:0.84rem; color:var(--muted);">No vendor applications found in database yet.</p>`;
+
+      const aEl = document.getElementById("adminAreasList");
+      aEl.innerHTML = areas
+        .map(
+          (a) => `
+          <div class="dash-row">
+            <div>
+              <strong style="font-size:0.9rem; color:var(--navy-900);">${a.name}</strong>
+              <div style="font-size:0.76rem; color:var(--muted);">${a.sub_county} · Nearby: ${(a.nearby_slugs || []).join(", ") || "None"}</div>
+            </div>
+            <button class="btn ${a.is_active ? "btn-outline" : "btn-amber"}" onclick="toggleAreaActive('${a.slug}', ${Boolean(a.is_active)})">
+              ${a.is_active ? "Deactivate" : "Activate"}
+            </button>
+          </div>
+        `
+        )
+        .join("");
+    }
+
+    loadAdminData();
+  </script>
+</body>
+</html>

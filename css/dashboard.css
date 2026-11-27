@@ -1,0 +1,63 @@
+/* mswazi1/css/dashboard.css — Shared layout for vendor, rider & admin workspaces */
+.dash-topbar {
+  background: var(--navy-950);
+  color: #ffffff;
+  border-bottom: 3px solid var(--amber-500);
+  padding: 0.8rem 0;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.dash-topbar-inner {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.dash-split {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 820px) {
+  .dash-split {
+    grid-template-columns: 1fr 1.25fr;
+  }
+}
+
+.dash-panel {
+  padding: 1.1rem;
+}
+
+.dash-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.dash-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.dash-row:last-child {
+  border-bottom: none;
+}
+
+.map-frame {
+  width: 100%;
+  border-radius: var(--radius-md);
+  z-index: 1;
+}

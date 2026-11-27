@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vendor Stall Dashboard — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <style>
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.25rem; }
+    .suborder-controls { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; }
+    .pay-code-pill { display: inline-block; background: #fef3c7; color: #92400e; font-size: 0.74rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.35rem; }
+  </style>
+</head>
+<body>
+  <header class="dash-topbar">
+    <div class="dash-topbar-inner">
+      <strong style="letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">MY BUSINESS</span></strong>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <span id="currencyMount"></span>
+        <button class="btn btn-outline" id="switchToShopBtn">Switch to SHOP Mode</button>
+        <a href="./rider-dashboard.html" class="btn btn-amber">Trusted Riders</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900);" id="stallHeading">Your Stall Dashboard</h1>
+        <p style="font-size:0.84rem; color:var(--muted);" id="stallSub">Manage your products, stock levels, live location, and stall plan</p>
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+        <button class="btn btn-outline" id="liveLocationBtn">Share Live Location: Off</button>
+        <span class="badge" id="approvalBadge">Status</span>
+      </div>
+    </div>
+
+    <div class="dash-split">
+      <div class="dash-stack">
+        <section class="card dash-panel">
+          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.35rem;">Stall Plan &amp; Launch Window</h2>
+          <p style="font-size:0.8rem; color:var(--muted); margin-bottom:0.75rem;" id="planSummaryText">
+            First 3 months free after launch, then 200 KES / week or 650 KES / month for Standard stalls.
+          </p>
+          <form id="planForm">
+            <div class="form-group">
+              <label for="planTierSelect">Stall Tier</label>
+              <select class="field" id="planTierSelect">
+                <option value="STANDARD">Standard Stall (200 KES/wk or 650 KES/mo after 3-mo launch)</option>
+                <option value="SPOTLIGHT">Spotlight Stall (450 KES/wk or 1,500 KES/mo · Top Placement)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="billingCycleSelect">Billing Cycle</label>
+              <select class="field" id="billingCycleSelect">
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="planRefInput">Payment / Renewal Reference (Optional)</label>
+              <input class="field" id="planRefInput" type="text" placeholder="e.g. LAUNCH-FREE or M-Pesa code" />
+            </div>
+            <button class="btn btn-outline" style="width:100%;" type="submit">Save Plan Selection</button>
+          </form>
+        </section>
+
+        <section class="card dash-panel">
+          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.75rem;">Add Product to Your Stall</h2>
+          <form id="addProductForm">
+            <div class="form-group">
+              <label for="prodName">Item Name</label>
+              <input class="field" id="prodName" type="text" required placeholder="e.g. Fresh Tomatoes (2kg)" />
+            </div>
+            <div class="form-group">
+              <label for="prodPrice">Price (KES)</label>
+              <input class="field" id="prodPrice" type="number" min="1" step="1" required placeholder="180" />
+            </div>
+            <div class="form-group">
+              <label for="prodUnit">Unit Label</label>
+              <input class="field" id="prodUnit" type="text" value="pack" required />
+            </div>
+            <div class="form-group">
+              <label for="prodStock">Stock Quantity</label>
+              <input class="field" id="prodStock" type="number" min="0" value="15" required />
+            </div>
+            <button class="btn btn-amber" style="width:100%;" type="submit">Publish Item</button>
+          </form>
+        </section>
+      </div>
+
+      <div class="dash-stack">
+        <section class="card dash-panel">
+          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Stall Catalogue &amp; Stock</h2>
+          <div id="vendorProductsList"></div>
+        </section>
+
+        <section class="card dash-panel">
+          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Incoming Sub-Orders &amp; Direct Payments</h2>
+          <div id="vendorSubOrdersList"></div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "../js/supabase.js";
+    import { MSWAZI_CONFIG } from "../js/config.js";
+    import { getCurrentUserContext, formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+    import { switchAccountMode } from "../js/auth.js";
+    import { fetchProductsByVendor } from "../js/products.js";
+    import { updateVendorSubscriptionPlan } from "../js/vendors.js";
+    import { confirmSubOrderPaymentReceived } from "../js/orders.js";
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("vendorCurrencySelect");
+    document.getElementById("vendorCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      updatePlanSummary();
+      refreshVendorData();
+    });
+
+    const { user } = await getCurrentUserContext();
+    let myVendor = null;
+    let liveLocationActive = false;
+    let watchId = null;
+
+    if (user) {
+      const { data } = await supabase.from("vendors").select("*").eq("owner_id", user.id).maybeSingle();
+      myVendor = data;
+    }
+
+    function updatePlanSummary() {
+      const { launchMonths, standardWeeklyKes, standardMonthlyKes, spotlightWeeklyKes, spotlightMonthlyKes } = MSWAZI_CONFIG.stallPlans;
+      const status = myVendor?.subscription_status || "LAUNCH_FREE";
+      const tier = myVendor?.plan_tier || "STANDARD";
+      const cycle = myVendor?.billing_cycle || "MONTHLY";
+      document.getElementById("planSummaryText").textContent =
+        `Status: ${status} · Tier: ${tier} (${cycle}). First ${launchMonths} months free after launch; then Standard is ${formatKES(standardWeeklyKes)}/wk or ${formatKES(standardMonthlyKes)}/mo, and Spotlight is ${formatKES(spotlightWeeklyKes)}/wk or ${formatKES(spotlightMonthlyKes)}/mo.`;
+    }
+
+    updatePlanSummary();
+
+    if (myVendor) {
+      document.getElementById("planTierSelect").value = myVendor.plan_tier || "STANDARD";
+      document.getElementById("billingCycleSelect").value = myVendor.billing_cycle || "MONTHLY";
+      document.getElementById("stallHeading").textContent = myVendor.business_name;
+      document.getElementById("stallSub").textContent = `Area: ${myVendor.area_slug} · Category: ${myVendor.category}`;
+      const badge = document.getElementById("approvalBadge");
+      badge.textContent = myVendor.approval_status;
+      badge.classList.toggle("badge-active", myVendor.approval_status === "APPROVED");
+    }
+
+    document.getElementById("planForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!myVendor) {
+        showToast("Register or sign in to a stall first.");
+        return;
+      }
+      try {
+        const nextTier = document.getElementById("planTierSelect").value;
+        const nextCycle = document.getElementById("billingCycleSelect").value;
+        const nextRef = document.getElementById("planRefInput").value;
+        await updateVendorSubscriptionPlan(myVendor.id, {
+          planTier: nextTier,
+          billingCycle: nextCycle,
+          paymentRef: nextRef
+        });
+        myVendor.plan_tier = nextTier;
+        myVendor.billing_cycle = nextCycle;
+        myVendor.subscription_status = "ACTIVE";
+        updatePlanSummary();
+        showToast("Stall plan updated");
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+
+    const liveBtn = document.getElementById("liveLocationBtn");
+    liveBtn.addEventListener("click", () => {
+      if (!myVendor) {
+        showToast("Register or sign in to a stall first.");
+        return;
+      }
+
+      if (!liveLocationActive) {
+        if (!navigator.geolocation) {
+          showToast("Geolocation is not supported on this device.");
+          return;
+        }
+        liveLocationActive = true;
+        liveBtn.textContent = "Share Live Location: On";
+        liveBtn.classList.replace("btn-outline", "btn-amber");
+        showToast("Live stall location sharing enabled");
+
+        watchId = navigator.geolocation.watchPosition(
+          async (pos) => {
+            await supabase
+              .from("vendors")
+              .update({
+                live_lat: pos.coords.latitude,
+                live_lng: pos.coords.longitude,
+                location_updated_at: new Date().toISOString()
+              })
+              .eq("id", myVendor.id);
+          },
+          (err) => showToast(err.message || "Location error"),
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        );
+      } else {
+        liveLocationActive = false;
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+        liveBtn.textContent = "Share Live Location: Off";
+        liveBtn.classList.replace("btn-amber", "btn-outline");
+        showToast("Live stall location sharing paused");
+      }
+    });
+
+    document.getElementById("switchToShopBtn").addEventListener("click", () => {
+      if (user) switchAccountMode(user.id, "SHOP");
+      else window.location.href = "./stalls.html";
+    });
+
+    window.toggleStock = async (prodId, currentAvail) => {
+      await supabase.from("products").update({ is_available: !currentAvail }).eq("id", prodId);
+      showToast("Item availability updated");
+      await refreshVendorData();
+    };
+
+    window.setSubOrderStatus = async (subOrderId, nextStatus) => {
+      await supabase.from("vendor_orders").update({ status: nextStatus }).eq("id", subOrderId);
+      showToast(`Sub-order marked ${nextStatus}`);
+      await refreshVendorData();
+    };
+
+    window.confirmSubOrderPayment = async (subOrderId) => {
+      try {
+        await confirmSubOrderPaymentReceived(subOrderId);
+        showToast("Direct payment marked PAID_CONFIRMED");
+        await refreshVendorData();
+      } catch (err) {
+        showToast(err.message);
+      }
+    };
+
+    document.getElementById("addProductForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!myVendor) {
+        showToast("No vendor stall linked to account yet.");
+        return;
+      }
+
+      const { error } = await supabase.from("products").insert({
+        vendor_id: myVendor.id,
+        name: document.getElementById("prodName").value.trim(),
+        category: myVendor.category,
+        price_kes: Number(document.getElementById("prodPrice").value),
+        unit_label: document.getElementById("prodUnit").value.trim(),
+        stock_qty: Number(document.getElementById("prodStock").value),
+        is_available: true
+      });
+
+      if (error) showToast(error.message);
+      else {
+        e.target.reset();
+        showToast("Product added to stall");
+        await refreshVendorData();
+      }
+    });
+
+    async function refreshVendorData() {
+      const prodEl = document.getElementById("vendorProductsList");
+      const ordEl = document.getElementById("vendorSubOrdersList");
+
+      if (!myVendor) {
+        prodEl.innerHTML = `<p style="font-size:0.84rem; color:var(--muted);">Sign in and <a href="./vendor-register.html" style="color:var(--amber-600); font-weight:700;">register a stall</a> to manage items.</p>`;
+        ordEl.innerHTML = `<p style="font-size:0.84rem; color:var(--muted);">Vendor sub-orders appear here once your stall receives orders.</p>`;
+        return;
+      }
+
+      const prods = await fetchProductsByVendor(myVendor.id);
+      prodEl.innerHTML = prods.length
+        ? prods
+            .map(
+              (p) => `
+              <div class="dash-row">
+                <div>
+                  <strong style="font-size:0.88rem; color:var(--navy-900);">${p.name}</strong>
+                  <div style="font-size:0.76rem; color:var(--muted);">${formatKES(p.price_kes)} / ${p.unit_label} · Stock: ${p.stock_qty}</div>
+                </div>
+                <button class="btn btn-outline" onclick="toggleStock('${p.id}', ${Boolean(p.is_available)})">${p.is_available ? "Available" : "Hidden"}</button>
+              </div>
+            `
+            )
+            .join("")
+        : `<p style="font-size:0.83rem; color:var(--muted);">No items published yet.</p>`;
+
+      const { data: subOrders } = await supabase
+        .from("vendor_orders")
+        .select("*")
+        .eq("vendor_id", myVendor.id)
+        .order("created_at", { ascending: false });
+
+      ordEl.innerHTML = subOrders && subOrders.length
+        ? subOrders
+            .map((vo) => {
+              const payStatus = vo.payment_status || "UNPAID";
+              const isConfirmed = payStatus === "PAID_CONFIRMED";
+              const refBadge = vo.payment_reference
+                ? `<span class="pay-code-pill">Ref: ${vo.payment_reference}</span>`
+                : `<span style="font-size:0.74rem; color:var(--muted);">No code logged yet</span>`;
+
+              return `
+                <div class="dash-row">
+                  <div>
+                    <strong style="font-size:0.88rem; color:var(--navy-900);">Sub-Order #${String(vo.id).slice(0, 8)}</strong>
+                    <div style="font-size:0.76rem; color:var(--muted);">Subtotal: ${formatKES(vo.subtotal_kes)} · Fulfillment: ${vo.status}</div>
+                    <div style="font-size:0.76rem; color:var(--navy-800); margin-top:0.2rem;">
+                      Payment: <strong>${payStatus}</strong> ${refBadge}
+                    </div>
+                  </div>
+                  <div class="suborder-controls">
+                    ${
+                      isConfirmed
+                        ? `<span class="badge badge-active">PAID_CONFIRMED</span>`
+                        : `<button class="btn btn-amber" style="padding:0.35rem 0.7rem; font-size:0.76rem;" onclick="confirmSubOrderPayment('${vo.id}')">Mark PAID_CONFIRMED</button>`
+                    }
+                    <select class="field" style="width:auto;" onchange="setSubOrderStatus('${vo.id}', this.value)">
+                      <option value="CONFIRMED" ${vo.status === "CONFIRMED" ? "selected" : ""}>CONFIRMED</option>
+                      <option value="PREPARING" ${vo.status === "PREPARING" ? "selected" : ""}>PREPARING</option>
+                      <option value="READY_FOR_PICKUP" ${vo.status === "READY_FOR_PICKUP" ? "selected" : ""}>READY_FOR_PICKUP</option>
+                      <option value="IN_TRANSIT" ${vo.status === "IN_TRANSIT" ? "selected" : ""}>IN_TRANSIT</option>
+                      <option value="DELIVERED" ${vo.status === "DELIVERED" ? "selected" : ""}>DELIVERED</option>
+                    </select>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")
+        : `<p style="font-size:0.83rem; color:var(--muted);">No sub-orders yet.</p>`;
+    }
+
+    refreshVendorData();
+  </script>
+</body>
+</html>

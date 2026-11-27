@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MSWAZI — Every Stall Has a Story. Every Business Has a Place.</title>
+  <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/components.css" />
+  <style>
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 0.72rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+    }
+    .icon-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--navy-900);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .icon-btn:hover { background: #eef1f8; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      text-decoration: none;
+      color: var(--navy-900);
+    }
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--navy-900);
+      color: var(--amber-500);
+      border: 2px solid var(--amber-500);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 1.05rem;
+    }
+    .brand-title { font-weight: 800; font-size: 1.08rem; letter-spacing: 0.04em; line-height: 1.1; }
+    .brand-sub { font-size: 0.68rem; color: var(--muted); font-weight: 600; }
+    .topbar-nav { display: none; gap: 1.25rem; }
+    @media (min-width: 820px) { .topbar-nav { display: flex; } }
+    .topbar-nav a { text-decoration: none; font-size: 0.86rem; font-weight: 600; color: var(--text); }
+    .topbar-nav a:hover { color: var(--amber-600); }
+    .topbar-actions { display: flex; gap: 0.45rem; }
+
+    .drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(12, 18, 48, 0.5);
+      z-index: 60;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+    .drawer {
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      width: min(300px, 84vw);
+      background: var(--surface);
+      z-index: 70;
+      transform: translateX(-100%);
+      transition: transform 0.24s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .drawer.open { transform: translateX(0); }
+    .drawer-head {
+      padding: 1rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 800;
+      color: var(--navy-900);
+    }
+    .drawer-links { display: flex; flex-direction: column; }
+    .drawer-links a {
+      padding: 0.95rem 1.2rem;
+      border-bottom: 1px solid var(--border);
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .drawer-cta {
+      margin-top: auto;
+      padding: 1.1rem;
+      background: #f8fafd;
+      border-top: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .hero {
+      background: linear-gradient(180deg, var(--navy-950) 0%, var(--navy-800) 100%);
+      color: #ffffff;
+      padding: 2.25rem 0 4.25rem;
+      border-bottom: 4px solid var(--amber-500);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #cbd5f5;
+      margin-bottom: 0.75rem;
+    }
+    .eyebrow-bar { width: 2px; height: 14px; background: var(--amber-500); display: inline-block; }
+    .hero h1 { font-size: clamp(1.85rem, 4.8vw, 2.7rem); font-weight: 800; line-height: 1.14; max-width: 720px; margin-bottom: 0.9rem; }
+    .hero h1 span { color: var(--amber-500); }
+    .hero-lead { color: #d7e0fa; max-width: 640px; margin-bottom: 1.3rem; }
+    .hero-actions { display: flex; gap: 0.65rem; flex-wrap: wrap; margin-bottom: 1.75rem; }
+    .hero-pillars {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      padding-top: 1.2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .pillar { display: flex; gap: 0.75rem; align-items: flex-start; }
+    .pillar-num {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: 1.5px solid rgba(245, 158, 11, 0.6);
+      color: var(--amber-500);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.82rem; flex-shrink: 0;
+    }
+    .pillar strong { display: block; font-size: 0.9rem; }
+    .pillar span { display: block; font-size: 0.78rem; color: #b8c5ed; }
+
+    .discovery-shell { margin-top: -2.6rem; position: relative; z-index: 10; }
+    .discovery-card { padding: 1.15rem; box-shadow: var(--shadow-md); }
+    .discovery-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .search-grid { display: grid; grid-template-columns: 1fr; gap: 0.65rem; }
+    @media (min-width: 680px) { .search-grid { grid-template-columns: 220px 1fr auto; } }
+    .discovery-foot {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem;
+      margin-top: 0.75rem; padding-top: 0.7rem; border-top: 1px solid var(--border);
+      font-size: 0.8rem; color: var(--muted);
+    }
+
+    .section-head { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
+    .section-head h2 { font-size: 1.38rem; font-weight: 800; color: var(--navy-900); }
+    .section-sub { font-size: 0.87rem; color: var(--muted); margin-top: 0.15rem; }
+
+    .chip-row { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.35rem; margin-bottom: 1rem; }
+    .chip {
+      border: 1px solid var(--border); background: var(--surface); color: var(--text);
+      border-radius: var(--radius-pill); padding: 0.42rem 0.9rem; font-size: 0.8rem; font-weight: 600;
+      white-space: nowrap; cursor: pointer;
+    }
+    .chip.active { background: var(--navy-900); color: #ffffff; border-color: var(--navy-900); }
+
+    .stall-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); gap: 0.95rem; }
+    @media (min-width: 560px) { .stall-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (min-width: 860px) { .stall-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+    .stall-banner { height: 118px; padding: 0.75rem; color: #ffffff; display: flex; flex-direction: column; justify-content: space-between; }
+    .stall-body { padding: 0.9rem; display: flex; flex-direction: column; flex: 1; }
+    .stall-title { font-weight: 800; font-size: 0.98rem; color: var(--navy-900); margin-bottom: 0.25rem; }
+    .stall-meta { font-size: 0.77rem; color: var(--muted); margin-bottom: 0.45rem; }
+    .stall-desc { font-size: 0.82rem; color: var(--muted); margin-bottom: 0.85rem; }
+    .stall-actions { margin-top: auto; display: flex; gap: 0.45rem; flex-wrap: wrap; }
+    .stall-foot { padding: 0.55rem 0.9rem; border-top: 1px solid var(--border); background: #fafbfe; font-size: 0.72rem; color: var(--muted); display: flex; justify-content: space-between; }
+
+    .steps-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.9rem; }
+    .step-card { padding: 1.2rem; }
+    .step-num { font-size: 1.6rem; color: var(--amber-600); line-height: 1; margin-bottom: 0.55rem; }
+    .step-card h3 { font-size: 0.98rem; font-weight: 800; color: var(--navy-900); margin-bottom: 0.35rem; }
+    .step-card p { font-size: 0.83rem; color: var(--muted); }
+
+    .cta-box {
+      background: linear-gradient(135deg, var(--navy-950) 0%, var(--navy-800) 100%);
+      color: #ffffff; border-radius: var(--radius-lg); padding: 1.75rem 1.35rem;
+      border-bottom: 4px solid var(--amber-500);
+      display: grid; grid-template-columns: 1fr; gap: 1.2rem; align-items: center;
+    }
+    @media (min-width: 740px) { .cta-box { grid-template-columns: 1.4fr 1fr; padding: 2rem; } }
+    .cta-box p { color: #d5defa; font-size: 0.9rem; margin-top: 0.35rem; }
+    .cta-col { display: flex; flex-direction: column; gap: 0.55rem; }
+
+    .footer { margin-top: 2.5rem; background: #ebeff8; border-top: 1px solid var(--border); padding: 2rem 0; }
+    .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.25rem; }
+    .footer ul { list-style: none; display: flex; flex-direction: column; gap: 0.35rem; margin-top: 0.45rem; font-size: 0.83rem; }
+    .footer a { color: var(--text); text-decoration: none; }
+
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(12, 18, 48, 0.58); z-index: 80;
+      display: none; align-items: flex-end; justify-content: center;
+    }
+    @media (min-width: 640px) { .modal-backdrop { align-items: center; padding: 1rem; } }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: var(--surface); width: 100%; max-width: 540px; max-height: 90vh; overflow-y: auto;
+      border-radius: 20px 20px 0 0; padding: 1.25rem;
+    }
+    @media (min-width: 640px) { .modal { border-radius: 20px; } }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+    .preview-row { display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0; border-bottom: 1px solid var(--border); }
+    .preview-row:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="topbar-left">
+        <button class="icon-btn" id="openDrawerBtn" aria-label="Open menu">☰</button>
+        <a href="./index.html" class="brand">
+          <div class="brand-mark">M</div>
+          <div>
+            <div class="brand-title">MSWAZI</div>
+            <div class="brand-sub">Every Stall Has a Story</div>
+          </div>
+        </a>
+      </div>
+      <nav class="topbar-nav">
+        <a href="#stalls">Vendor Stalls</a>
+        <a href="#how-it-works">How It Works</a>
+        <a href="#for-vendors">Open a Stall</a>
+      </nav>
+      <div class="topbar-actions">
+        <a href="./pages/login.html" class="btn btn-outline btn-sm">Sign In</a>
+        <a href="./pages/register.html" class="btn btn-amber btn-sm">Get Started</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+  <aside class="drawer" id="navDrawer">
+    <div class="drawer-head">
+      <span>MSWAZI</span>
+      <button class="icon-btn" id="closeDrawerBtn" aria-label="Close menu">✕</button>
+    </div>
+    <div class="drawer-links">
+      <a href="#stalls" onclick="document.getElementById('drawerBackdrop').click()">Explore Vendor Stalls</a>
+      <a href="#how-it-works" onclick="document.getElementById('drawerBackdrop').click()">How MSWAZI Works</a>
+      <a href="#for-vendors" onclick="document.getElementById('drawerBackdrop').click()">Register a Business Stall</a>
+    </div>
+    <div class="drawer-cta">
+      <a href="./pages/login.html" class="btn btn-navy">Sign In</a>
+      <a href="./pages/register.html" class="btn btn-amber">Create Account</a>
+    </div>
+  </aside>
+
+  <section class="hero">
+    <div class="container">
+      <div class="eyebrow"><span class="eyebrow-bar"></span> NEIGHBOURHOOD MULTI-VENDOR MARKETPLACE</div>
+      <h1>Every stall has a story. <span>Every business has a place.</span></h1>
+      <p class="hero-lead">
+        Discover independent neighbourhood stalls first, step inside dedicated mini-storefronts, and combine purchases from multiple vendors into one checkout.
+      </p>
+      <div class="hero-actions">
+        <a href="#stalls" class="btn btn-amber">Browse Nearby Stalls →</a>
+        <a href="./pages/register.html?role=vendor" class="btn btn-outline" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.25);">Register a Business Stall</a>
+      </div>
+      <div class="hero-pillars">
+        <div class="pillar">
+          <div class="pillar-num">01</div>
+          <div><strong>Independent Mini-Stores</strong><span>Vendors control their own prices, stock &amp; storefront</span></div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-num">02</div>
+          <div><strong>Vendor &amp; Customer Account</strong><span>Manage a stall and shop other stalls on one login</span></div>
+        </div>
+        <div class="pillar">
+          <div class="pillar-num">03</div>
+          <div><strong>Combined Multi-Vendor Cart</strong><span>One checkout splits cleanly into vendor sub-orders</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="container discovery-shell">
+    <div class="card discovery-card">
+      <div class="discovery-head">
+        <strong style="color:var(--navy-900);">Find approved stalls in your area</strong>
+        <span class="badge badge-active" id="areaStatusPill">Active Service Area</span>
+      </div>
+      <div class="search-grid">
+        <select class="field" id="landingAreaSelect" aria-label="Select service area"></select>
+        <input class="field" type="search" id="landingSearchInput" placeholder="Search stall name, category, or item..." />
+        <button class="btn btn-amber" onclick="document.getElementById('stalls').scrollIntoView({behavior:'smooth'})">Search →</button>
+      </div>
+      <div class="discovery-foot">
+        <div style="display:flex; gap:0.45rem; flex-wrap:wrap;">
+          <button class="btn btn-outline btn-sm" id="landingNearbyBtn">Include Nearby Areas: Off</button>
+          <button class="btn btn-outline btn-sm" id="landingResetBtn">Reset</button>
+        </div>
+        <span id="landingCountText">0 stalls shown</span>
+      </div>
+    </div>
+  </div>
+
+  <section class="section" id="stalls">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <h2>Approved Vendor Stalls</h2>
+          <p class="section-sub">Preview individual mini-storefronts; sign in when ready to add items to your cart</p>
+        </div>
+      </div>
+      <div class="chip-row" id="landingSectorChips"></div>
+      <div class="stall-grid" id="landingStallGrid"></div>
+    </div>
+  </section>
+
+  <section class="section" id="how-it-works">
+    <div class="container">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow" style="color:var(--navy-900);"><span class="eyebrow-bar"></span> HOW IT WORKS</div>
+          <h2>Built for local discovery and independent fulfilment.</h2>
+        </div>
+      </div>
+      <div class="steps-grid">
+        <div class="card step-card">
+          <div class="step-num">01</div>
+          <h3>Area-First Discovery</h3>
+          <p>See verified stalls in active areas first rather than a mixed catalogue.</p>
+        </div>
+        <div class="card step-card">
+          <div class="step-num">02</div>
+          <h3>Dedicated Mini-Stalls</h3>
+          <p>Each approved vendor operates its own storefront with independent pricing and stock.</p>
+        </div>
+        <div class="card step-card">
+          <div class="step-num">03</div>
+          <h3>Combined Checkout</h3>
+          <p>Shop across stalls in one session; orders split into individual vendor sub-orders.</p>
+        </div>
+        <div class="card step-card">
+          <div class="step-num">04</div>
+          <h3>M-Pesa &amp; Cash on Delivery</h3>
+          <p>Track payment status and delivery progress from confirmation to arrival.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="for-vendors">
+    <div class="container">
+      <div class="cta-box">
+        <div>
+          <div class="eyebrow"><span class="eyebrow-bar"></span> INDEPENDENT BUSINESSES</div>
+          <h2>Give your stall a digital storefront inside MSWAZI.</h2>
+          <p>Open a business account to manage products, inventory, and sub-orders while also shopping from other vendors.</p>
+        </div>
+        <div class="cta-col">
+          <a href="./pages/register.html?role=vendor" class="btn btn-amber">Apply for a Vendor Stall →</a>
+          <a href="./pages/login.html" class="btn btn-outline" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.25);">Sign In to Existing Account</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container footer-grid">
+      <div>
+        <div class="brand" style="margin-bottom:0.5rem;">
+          <div class="brand-mark">M</div>
+          <div>
+            <div class="brand-title">MSWAZI</div>
+            <div class="brand-sub">Neighbourhood Marketplace</div>
+          </div>
+        </div>
+        <p style="font-size:0.82rem; color:var(--muted);">One platform. Independent businesses. A connected local marketplace.</p>
+      </div>
+      <div>
+        <strong style="font-size:0.86rem; color:var(--navy-900);">Explore</strong>
+        <ul>
+          <li><a href="#stalls">Approved Vendor Stalls</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="./pages/login.html">Sign In</a></li>
+          <li><a href="./pages/register.html">Create Account</a></li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <div class="modal-backdrop" id="previewModal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="previewTitle">Stall Preview</h3>
+        <button class="icon-btn" onclick="document.getElementById('previewModal').classList.remove('open')">✕</button>
+      </div>
+      <div id="previewBody"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initDrawer, formatKES } from "./js/app.js";
+
+    initDrawer();
+
+    const AREAS = [
+      { id: "miritini", name: "Miritini", subCounty: "Jomvu", isActive: true, nearby: ["mikindani", "changamwe"] },
+      { id: "mikindani", name: "Mikindani", subCounty: "Jomvu", isActive: true, nearby: ["miritini", "changamwe"] },
+      { id: "changamwe", name: "Changamwe", subCounty: "Changamwe", isActive: true, nearby: ["miritini", "mikindani"] },
+      { id: "nyali", name: "Nyali", subCounty: "Nyali", isActive: false, nearby: [] }
+    ];
+
+    const STALLS = [
+      {
+        id: "s1", slug: "fresh-groceries-stall", name: "Fresh Groceries & Produce Stall",
+        category: "Grocery & Fresh Produce", areaId: "miritini", hours: "06:30 AM – 09:00 PM", rating: "4.9",
+        gradient: "linear-gradient(135deg,#14532d,#16a34a)",
+        desc: "Daily farm produce, potatoes, vegetables, and kitchen staples.",
+        items: [
+          { name: "Fresh Potatoes (5kg)", price: 350, unit: "bag" },
+          { name: "Tomatoes & Greens Bundle", price: 140, unit: "bundle" }
+        ]
+      },
+      {
+        id: "s2", slug: "kitchen-grill-stall", name: "Kitchen & Grill Stall",
+        category: "Food & Restaurants", areaId: "miritini", hours: "11:00 AM – 10:30 PM", rating: "4.8",
+        gradient: "linear-gradient(135deg,#7c2d12,#ea580c)",
+        desc: "Prepared meals, grilled dishes, snacks, and refreshments.",
+        items: [
+          { name: "Spiced Rice & Grill Platter", price: 450, unit: "plate" },
+          { name: "Chilled Refreshment", price: 120, unit: "bottle" }
+        ]
+      },
+      {
+        id: "s3", slug: "general-household-stall", name: "General & Household Stall",
+        category: "General Retail", areaId: "miritini", hours: "07:00 AM – 09:30 PM", rating: "4.7",
+        gradient: "linear-gradient(135deg,#1e3a8a,#2563eb)",
+        desc: "Household supplies, dry goods, and everyday retail essentials.",
+        items: [
+          { name: "Pantry & Cooking Oil Pack", price: 620, unit: "pack" },
+          { name: "Household Care Bundle", price: 390, unit: "bundle" }
+        ]
+      },
+      {
+        id: "s4", slug: "builders-materials-stall", name: "Builders Materials & Hardware Stall",
+        category: "Hardware & Building Supplies", areaId: "mikindani", hours: "07:30 AM – 06:00 PM", rating: "4.9",
+        gradient: "linear-gradient(135deg,#334155,#64748b)",
+        desc: "Cement, sand, ballast, and structural hardware supplies.",
+        items: [{ name: "Cement (50kg Bag)", price: 820, unit: "bag" }]
+      },
+      {
+        id: "s5", slug: "wearables-studio-stall", name: "Wearables & Apparel Stall",
+        category: "Fashion & Clothing", areaId: "changamwe", hours: "08:30 AM – 07:30 PM", rating: "4.8",
+        gradient: "linear-gradient(135deg,#581c87,#9333ea)",
+        desc: "Everyday apparel, footwear, and tailored garments.",
+        items: [{ name: "Casual Linen Shirt", price: 1650, unit: "piece" }]
+      }
+    ];
+
+    const SECTORS = ["All", "Grocery & Fresh Produce", "Food & Restaurants", "General Retail", "Hardware & Building Supplies", "Fashion & Clothing"];
+
+    let selectedArea = "miritini";
+    let includeNearby = false;
+    let selectedSector = "All";
+    let query = "";
+
+    const areaSelect = document.getElementById("landingAreaSelect");
+    const searchInput = document.getElementById("landingSearchInput");
+
+    areaSelect.innerHTML = AREAS.map(a => `<option value="${a.id}">${a.name} (${a.subCounty})</option>`).join("");
+    areaSelect.addEventListener("change", (e) => { selectedArea = e.target.value; render(); });
+    searchInput.addEventListener("input", (e) => { query = e.target.value; render(); });
+
+    document.getElementById("landingNearbyBtn").addEventListener("click", () => {
+      includeNearby = !includeNearby;
+      render();
+    });
+
+    document.getElementById("landingResetBtn").addEventListener("click", () => {
+      selectedArea = "miritini";
+      includeNearby = false;
+      selectedSector = "All";
+      query = "";
+      areaSelect.value = "miritini";
+      searchInput.value = "";
+      render();
+    });
+
+    window.selectLandingSector = (sec) => { selectedSector = sec; render(); };
+
+    window.openStallPreview = (id) => {
+      const stall = STALLS.find(s => s.id === id);
+      if (!stall) return;
+      document.getElementById("previewTitle").textContent = stall.name;
+      document.getElementById("previewBody").innerHTML = `
+        <p style="font-size:0.85rem; color:var(--muted); margin-bottom:0.8rem;">${stall.desc}</p>
+        <div style="border:1px solid var(--border); border-radius:12px; padding:0 0.8rem; margin-bottom:1rem;">
+          ${stall.items.map(it => `
+            <div class="preview-row">
+              <div>
+                <strong style="font-size:0.88rem; color:var(--navy-900);">${it.name}</strong>
+                <div style="font-size:0.75rem; color:var(--muted);">Per ${it.unit}</div>
+              </div>
+              <strong style="font-size:0.88rem; color:var(--navy-900);">${formatKES(it.price)}</strong>
+            </div>
+          `).join("")}
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <a href="./pages/login.html" class="btn btn-amber" style="flex:1;">Sign In to Shop →</a>
+          <a href="./pages/register.html" class="btn btn-outline">Create Account</a>
+        </div>
+      `;
+      document.getElementById("previewModal").classList.add("open");
+    };
+
+    function render() {
+      const area = AREAS.find(a => a.id === selectedArea) || AREAS[0];
+      const badge = document.getElementById("areaStatusPill");
+      badge.textContent = area.isActive ? `${area.name} · Active Area` : `${area.name} · Inactive Area`;
+      badge.classList.toggle("badge-active", area.isActive);
+
+      document.getElementById("landingNearbyBtn").textContent = `Include Nearby Areas: ${includeNearby ? "On" : "Off"}`;
+
+      document.getElementById("landingSectorChips").innerHTML = SECTORS.map(sec =>
+        `<button class="chip ${selectedSector === sec ? "active" : ""}" onclick="selectLandingSector('${sec}')">${sec}</button>`
+      ).join("");
+
+      const activeIds = area.isActive ? [area.id] : [];
+      if (area.isActive && includeNearby) {
+        area.nearby.forEach(nid => {
+          const near = AREAS.find(a => a.id === nid && a.isActive);
+          if (near) activeIds.push(near.id);
+        });
+      }
+
+      const q = query.trim().toLowerCase();
+      const filtered = STALLS.filter(s => {
+        if (!activeIds.includes(s.areaId)) return false;
+        if (selectedSector !== "All" && s.category !== selectedSector) return false;
+        if (q) {
+          return s.name.toLowerCase().includes(q) || s.category.toLowerCase().includes(q) || s.desc.toLowerCase().includes(q) || s.items.some(i => i.name.toLowerCase().includes(q));
+        }
+        return true;
+      });
+
+      document.getElementById("landingCountText").textContent = `${filtered.length} approved stall(s) shown`;
+      const grid = document.getElementById("landingStallGrid");
+
+      if (!area.isActive) {
+        grid.innerHTML = `<div class="card step-card" style="grid-column:1/-1;"><h3>${area.name} is not active yet</h3><p>Vendors can register ahead of launch; stalls become publicly visible once the area is activated.</p></div>`;
+        return;
+      }
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="card step-card" style="grid-column:1/-1;"><h3>No stalls match your filter</h3><p>Try clearing search or enabling nearby active areas.</p></div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(s => {
+        const sArea = AREAS.find(a => a.id === s.areaId);
+        return `
+          <article class="card" style="display:flex; flex-direction:column;">
+            <div class="stall-banner" style="background:${s.gradient};">
+              <div style="display:flex; justify-content:space-between; font-size:0.7rem; font-weight:700;">
+                <span>${s.category}</span>
+                <span>★ ${s.rating}</span>
+              </div>
+              <div style="font-weight:800; font-size:0.95rem;">${s.items.length} Featured Items</div>
+            </div>
+            <div class="stall-body">
+              <div class="stall-title">${s.name}</div>
+              <div class="stall-meta">${sArea ? sArea.name : ""} · ${s.hours}</div>
+              <p class="stall-desc">${s.desc}</p>
+              <div class="stall-actions">
+                <button class="btn btn-amber btn-sm" onclick="openStallPreview('${s.id}')">Preview Stall →</button>
+                <a href="./pages/login.html" class="btn btn-outline btn-sm">Sign In</a>
+              </div>
+            </div>
+            <div class="stall-foot">
+              <span>Approved Stall</span>
+              <span>/store/${s.slug}</span>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    render();
+  </script>
+</body>
+</html>

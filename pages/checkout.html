@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Combined Checkout — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .checkout-layout { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 780px) { .checkout-layout { grid-template-columns: 1.25fr 1fr; } }
+    .form-group { margin-bottom: 0.85rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+    .suborder-pay-box { background: #f8fafd; border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem; margin-bottom: 0.65rem; }
+  </style>
+</head>
+<body>
+  <main class="container section" style="max-width:880px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.85rem;">
+      <a href="./cart.html" style="font-size:0.84rem; font-weight:700; color:var(--muted); text-decoration:none;">← Back to Cart</a>
+      <span id="currencyMount"></span>
+    </div>
+
+    <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Combined Checkout</h1>
+    <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1rem;">Each stall receives payment directly to its registered account while orders split into vendor sub-orders.</p>
+
+    <div class="checkout-layout">
+      <form class="card" style="padding:1.2rem;" id="checkoutForm">
+        <div class="form-group">
+          <label for="areaSelect">Delivery Area</label>
+          <select class="field" id="areaSelect"></select>
+        </div>
+        <div class="form-group">
+          <label for="addressInput">Delivery Street / Landmark</label>
+          <input class="field" id="addressInput" type="text" required placeholder="e.g. Near Miritini Stage, Jomvu" />
+        </div>
+        <div class="form-group">
+          <label for="paymentMethod">Preferred Settlement Mode</label>
+          <select class="field" id="paymentMethod">
+            <option value="MPESA">Direct Mobile Money (M-Pesa to Vendor Account)</option>
+            <option value="COD">Cash on Delivery / Direct Handover</option>
+          </select>
+        </div>
+        <div class="form-group" id="mpesaPhoneGroup">
+          <label for="phoneInput">Your Phone Number (For Order &amp; Delivery Coordination)</label>
+          <input class="field" id="phoneInput" type="tel" required placeholder="07XX XXX XXX" />
+        </div>
+        <button class="btn btn-amber" style="width:100%;" type="submit" id="placeOrderBtn">Place Combined Order →</button>
+        <p id="checkoutFeedback" style="font-size:0.82rem; color:var(--navy-900); margin-top:0.75rem;"></p>
+      </form>
+
+      <aside class="card" style="padding:1.2rem;" id="summaryCard">
+        <h2 style="font-size:1rem; font-weight:800; color:var(--navy-900); margin-bottom:0.75rem;">Direct Vendor Sub-Orders</h2>
+        <div id="breakdownList"></div>
+        <div style="border-top:1px solid var(--border); margin-top:0.5rem; padding-top:0.8rem; display:flex; justify-content:space-between;">
+          <span style="font-weight:700;">Combined Total</span>
+          <strong style="font-size:1.15rem; color:var(--navy-900);" id="summaryTotal">KES 0</strong>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script type="module">
+    import { loadCartItems, groupCartByVendor } from "../js/cart.js";
+    import { fetchServiceAreas, getSavedAreaSlug } from "../js/location.js";
+    import { fetchVendorByIdOrSlug } from "../js/vendors.js";
+    import { placeCombinedOrder } from "../js/checkout.js";
+    import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+
+    const CHANNEL_LABELS = {
+      MPESA_SEND: "M-Pesa Send Money / Phone",
+      MPESA_TILL: "M-Pesa Buy Goods Till",
+      MPESA_PAYBILL: "M-Pesa Paybill",
+      COD_ONLY: "Cash on Delivery"
+    };
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("checkoutCurrencySelect");
+    document.getElementById("checkoutCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      renderSummary();
+    });
+
+    const areas = await fetchServiceAreas();
+    const activeAreas = areas.filter((a) => a.is_active);
+    const areaSelect = document.getElementById("areaSelect");
+    areaSelect.innerHTML = activeAreas.map((a) => `<option value="${a.slug}">${a.name} (${a.sub_county})</option>`).join("");
+    const saved = getSavedAreaSlug();
+    if (activeAreas.some((a) => a.slug === saved)) areaSelect.value = saved;
+
+    const paymentMethodSelect = document.getElementById("paymentMethod");
+    const phoneGroup = document.getElementById("mpesaPhoneGroup");
+    const phoneInput = document.getElementById("phoneInput");
+
+    paymentMethodSelect.addEventListener("change", () => {
+      const isMpesa = paymentMethodSelect.value === "MPESA";
+      phoneGroup.style.display = isMpesa ? "block" : "none";
+      phoneInput.required = isMpesa;
+    });
+
+    const items = await loadCartItems();
+    const { groups, grandTotalKes } = groupCartByVendor(items);
+
+    const enrichedGroups = await Promise.all(
+      groups.map(async (g) => {
+        const vendor = await fetchVendorByIdOrSlug(g.vendor_id);
+        return { ...g, vendor };
+      })
+    );
+
+    function renderSummary() {
+      document.getElementById("breakdownList").innerHTML = enrichedGroups.length
+        ? enrichedGroups
+            .map((g) => {
+              const v = g.vendor || {};
+              const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
+              const ref = v.payment_account_ref || "Set in stall profile";
+              const acctName = v.payment_account_name ? ` (${v.payment_account_name})` : "";
+              const note = v.payment_instructions ? `<div style="font-size:0.74rem; color:var(--amber-600); margin-top:0.2rem;">${v.payment_instructions}</div>` : "";
+              return `
+                <div class="suborder-pay-box">
+                  <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
+                    <strong style="font-size:0.88rem; color:var(--navy-900);">${g.vendor_name}</strong>
+                    <strong>${formatKES(g.subtotal_kes)}</strong>
+                  </div>
+                  <div style="font-size:0.77rem; color:var(--muted); margin-top:0.25rem;">
+                    Pay directly via <strong>${channel}</strong>: <strong>${ref}</strong>${acctName}
+                  </div>
+                  ${note}
+                </div>
+              `;
+            })
+            .join("")
+        : `<p style="font-size:0.84rem; color:var(--muted);">No items in cart.</p>`;
+
+      document.getElementById("summaryTotal").textContent = formatKES(grandTotalKes);
+    }
+
+    renderSummary();
+
+    document.getElementById("checkoutForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById("placeOrderBtn");
+      const fb = document.getElementById("checkoutFeedback");
+      btn.disabled = true;
+      btn.textContent = "Submitting order...";
+
+      try {
+        const res = await placeCombinedOrder({
+          items,
+          areaSlug: areaSelect.value,
+          deliveryAddress: document.getElementById("addressInput").value,
+          paymentMethod: paymentMethodSelect.value,
+          phoneNumber: phoneInput.value
+        });
+        showToast("Combined order placed!");
+        fb.textContent = `Order created with ${res.subOrderCount} direct vendor sub-order(s). ${res.paymentMeta.message}`;
+        setTimeout(() => {
+          window.location.href = "./orders.html";
+        }, 1100);
+      } catch (err) {
+        fb.textContent = err.message;
+        btn.disabled = false;
+        btn.textContent = "Place Combined Order →";
+      }
+    });
+  </script>
+</body>
+</html>

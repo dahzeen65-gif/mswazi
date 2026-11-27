@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; }
+    .auth-card { width: 100%; max-width: 450px; padding: 1.5rem; box-shadow: var(--shadow-md); }
+    .form-group { margin-bottom: 0.85rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+    .err-box { background: #fee2e2; color: #991b1b; padding: 0.65rem 0.8rem; border-radius: 10px; font-size: 0.82rem; margin-bottom: 0.85rem; display: none; }
+    .ok-box { background: var(--success-bg); color: var(--success-text); padding: 0.65rem 0.8rem; border-radius: 10px; font-size: 0.82rem; margin-bottom: 0.85rem; display: none; }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="card auth-card">
+      <a href="../index.html" style="font-size:0.8rem; font-weight:700; color:var(--muted); text-decoration:none; display:inline-block; margin-bottom:0.75rem;">← Back to Landing Page</a>
+      <h1 style="font-size:1.35rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Create Your MSWAZI Account</h1>
+      <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1rem;">Shop from neighbourhood stalls and optionally apply for your own vendor mini-store.</p>
+
+      <div class="err-box" id="regError"></div>
+      <div class="ok-box" id="regSuccess"></div>
+
+      <form id="registerForm">
+        <div class="form-group">
+          <label for="regPurpose">How do you plan to start?</label>
+          <select class="field" id="regPurpose">
+            <option value="CUSTOMER">Shop from Local Stalls (Customer)</option>
+            <option value="VENDOR">Shop &amp; Register a Business Stall (Vendor)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="regName">Full Name</label>
+          <input class="field" id="regName" type="text" required placeholder="Your full name" />
+        </div>
+        <div class="form-group">
+          <label for="regPhone">Phone Number (M-Pesa &amp; Delivery Updates)</label>
+          <input class="field" id="regPhone" type="tel" required placeholder="07XX XXX XXX" />
+        </div>
+        <div class="form-group">
+          <label for="regEmail">Email Address</label>
+          <input class="field" id="regEmail" type="email" required placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="regArea">Default Area</label>
+          <select class="field" id="regArea">
+            <option value="miritini">Miritini (Jomvu)</option>
+            <option value="mikindani">Mikindani (Jomvu)</option>
+            <option value="changamwe">Changamwe</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="regPassword">Password</label>
+          <input class="field" id="regPassword" type="password" minlength="8" required placeholder="At least 8 characters" />
+        </div>
+        <button class="btn btn-amber" style="width:100%;" type="submit" id="regSubmitBtn">Create Account →</button>
+      </form>
+
+      <p style="font-size:0.82rem; color:var(--muted); margin-top:1rem; text-align:center;">
+        Already have an account? <a href="./login.html" style="color:var(--navy-900); font-weight:700; text-decoration:none;">Sign in</a>
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { registerAccount } from "../js/auth.js";
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("role") === "vendor") {
+      document.getElementById("regPurpose").value = "VENDOR";
+    }
+
+    const form = document.getElementById("registerForm");
+    const errBox = document.getElementById("regError");
+    const okBox = document.getElementById("regSuccess");
+    const btn = document.getElementById("regSubmitBtn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.style.display = "none";
+      okBox.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Creating account...";
+
+      const purpose = document.getElementById("regPurpose").value;
+
+      try {
+        const res = await registerAccount({
+          fullName: document.getElementById("regName").value,
+          phoneNumber: document.getElementById("regPhone").value,
+          email: document.getElementById("regEmail").value,
+          password: document.getElementById("regPassword").value,
+          defaultAreaSlug: document.getElementById("regArea").value,
+          accountPurpose: purpose
+        });
+
+        if (res.session) {
+          window.location.href = purpose === "VENDOR" ? "./vendor-register.html" : "./stalls.html";
+        } else {
+          okBox.textContent = "Account created. Please verify your email or sign in to continue.";
+          okBox.style.display = "block";
+          btn.disabled = false;
+          btn.textContent = "Create Account →";
+        }
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Create Account →";
+      }
+    });
+  </script>
+</body>
+</html>

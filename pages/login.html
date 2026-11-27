@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .auth-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem 1rem; }
+    .auth-card { width: 100%; max-width: 420px; padding: 1.5rem; box-shadow: var(--shadow-md); }
+    .auth-brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; color: var(--navy-900); margin-bottom: 1.1rem; }
+    .auth-mark { width: 36px; height: 36px; border-radius: 10px; background: var(--navy-900); color: var(--amber-500); border: 2px solid var(--amber-500); display: flex; align-items: center; justify-content: center; font-weight: 800; }
+    .form-group { margin-bottom: 0.9rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+    .err-box { background: #fee2e2; color: #991b1b; padding: 0.65rem 0.8rem; border-radius: 10px; font-size: 0.82rem; margin-bottom: 0.85rem; display: none; }
+  </style>
+</head>
+<body>
+  <div class="auth-wrap">
+    <div class="card auth-card">
+      <a href="../index.html" class="auth-brand">
+        <div class="auth-mark">M</div>
+        <div>
+          <div style="font-weight:800; font-size:1.05rem;">MSWAZI</div>
+          <div style="font-size:0.72rem; color:var(--muted);">One Account for Buying &amp; Selling</div>
+        </div>
+      </a>
+
+      <h1 style="font-size:1.35rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Sign In</h1>
+      <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1.1rem;">Access your customer marketplace or switch into your stall dashboard.</p>
+
+      <div class="err-box" id="loginError"></div>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="loginIdentifier">Email Address</label>
+          <input class="field" id="loginIdentifier" type="email" required autocomplete="email" placeholder="you@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input class="field" id="loginPassword" type="password" required autocomplete="current-password" placeholder="Enter password" />
+        </div>
+        <button class="btn btn-navy" style="width:100%;" type="submit" id="loginSubmitBtn">Sign In →</button>
+      </form>
+
+      <p style="font-size:0.82rem; color:var(--muted); margin-top:1.1rem; text-align:center;">
+        New to MSWAZI? <a href="./register.html" style="color:var(--amber-600); font-weight:700; text-decoration:none;">Create an account</a>
+      </p>
+    </div>
+  </div>
+
+  <script type="module">
+    import { signInWithIdentifier } from "../js/auth.js";
+    import { getCurrentUserContext } from "../js/app.js";
+
+    const { profile } = await getCurrentUserContext();
+    if (profile) {
+      window.location.href = profile.active_mode === "MY_BUSINESS" ? "./vendor-dashboard.html" : "./stalls.html";
+    }
+
+    const form = document.getElementById("loginForm");
+    const errBox = document.getElementById("loginError");
+    const btn = document.getElementById("loginSubmitBtn");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.style.display = "none";
+      btn.disabled = true;
+      btn.textContent = "Signing in...";
+
+      try {
+        await signInWithIdentifier({
+          identifier: document.getElementById("loginIdentifier").value,
+          password: document.getElementById("loginPassword").value
+        });
+        const ctx = await getCurrentUserContext();
+        window.location.href = ctx.profile?.active_mode === "MY_BUSINESS" ? "./vendor-dashboard.html" : "./stalls.html";
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Sign In →";
+      }
+    });
+  </script>
+</body>
+</html>

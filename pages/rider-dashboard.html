@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Trusted Riders &amp; Dispatch — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .nav { background: var(--navy-950); color: #fff; border-bottom: 3px solid var(--amber-500); padding: 0.8rem 0; }
+    .nav-inner { max-width: 1040px; margin: 0 auto; padding: 0 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+    @media (min-width: 820px) { .grid { grid-template-columns: 1fr 1.3fr; } }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.25rem; }
+    .row-item { padding: 0.7rem 0; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .row-item:last-child { border-bottom: none; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <strong style="letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">RIDERS &amp; DISPATCH</span></strong>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <button class="btn btn-outline" id="liveGpsBtn">Broadcast Live GPS: Off</button>
+        <a href="./vendor-dashboard.html" class="btn btn-amber">Back to Stall</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900);">Invite-Only Trusted Riders &amp; Live Deliveries</h1>
+        <p style="font-size:0.85rem; color:var(--muted);">Riders join by invite/trust and broadcast real-time GPS coordinates while moving deliveries.</p>
+      </div>
+      <span class="badge badge-active" id="gpsBadge">GPS Idle</span>
+    </div>
+
+    <div class="card" style="padding:0.75rem; margin-bottom:1.15rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:0.5rem;">
+        <strong style="font-size:0.88rem; color:var(--navy-900);">Live Dispatch Map</strong>
+        <span style="font-size:0.76rem; color:var(--muted);" id="lastPingText">Waiting for rider GPS updates...</span>
+      </div>
+      <div id="riderMap" style="height:280px; width:100%; border-radius:12px; z-index:1;"></div>
+    </div>
+
+    <div class="grid">
+      <section class="card" style="padding:1.1rem;">
+        <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.75rem;">Invite Trusted Rider</h2>
+        <form id="inviteRiderForm">
+          <div class="form-group">
+            <label for="riderLabel">Rider Name / Identifier</label>
+            <input class="field" id="riderLabel" type="text" required placeholder="e.g. Hassan — Miritini Boda" />
+          </div>
+          <div class="form-group">
+            <label for="vehicleType">Vehicle Type</label>
+            <select class="field" id="vehicleType">
+              <option value="Motorcycle / Boda">Motorcycle / Boda</option>
+              <option value="Tuk-Tuk / Van">Tuk-Tuk / Van</option>
+              <option value="Pickup / Truck">Pickup / Truck</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="routeScope">Route Scope</label>
+            <select class="field" id="routeScope">
+              <option value="LOCAL">Local Neighbourhood</option>
+              <option value="REGIONAL">Regional / Mainland</option>
+            </select>
+          </div>
+          <button class="btn btn-amber" style="width:100%;" type="submit">Add Trusted Rider</button>
+        </form>
+
+        <div style="margin-top:1.1rem; border-top:1px solid var(--border); padding-top:0.75rem;">
+          <strong style="font-size:0.88rem; color:var(--navy-900);">Trusted Riders</strong>
+          <div id="ridersList" style="margin-top:0.35rem;"></div>
+        </div>
+      </section>
+
+      <section class="card" style="padding:1.1rem;">
+        <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.6rem;">Active Delivery Legs</h2>
+        <div id="deliveriesList"></div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "../js/supabase.js";
+    import { inviteTrustedRider, fetchTrustedRiders, fetchDeliveriesWithSubOrders, updateDeliveryLeg } from "../js/delivery.js";
+    import { fetchServiceAreas } from "../js/location.js";
+    import { fetchApprovedStalls } from "../js/vendors.js";
+    import { createMswaziMap } from "../js/map.js";
+    import { showToast } from "../js/app.js";
+
+    let ridersCache = [];
+    let activeBroadcastRiderId = null;
+    let watchId = null;
+
+    const liveMap = await createMswaziMap("riderMap");
+    const areas = await fetchServiceAreas();
+    const stalls = await fetchApprovedStalls();
+    liveMap.renderAreas(areas, "miritini");
+    liveMap.renderStalls(stalls);
+    await liveMap.loadInitialRiderPings();
+    liveMap.subscribeRealtime({
+      onRiderPing: (ping) => {
+        liveMap.upsertRiderPing(ping);
+        document.getElementById("lastPingText").textContent =
+          `Live ping: ${Number(ping.lat).toFixed(5)}, ${Number(ping.lng).toFixed(5)}`;
+      }
+    });
+
+    const gpsBtn = document.getElementById("liveGpsBtn");
+    const gpsBadge = document.getElementById("gpsBadge");
+
+    gpsBtn.addEventListener("click", () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        gpsBtn.textContent = "Broadcast Live GPS: Off";
+        gpsBtn.classList.replace("btn-amber", "btn-outline");
+        gpsBadge.textContent = "GPS Idle";
+        showToast("Stopped broadcasting live rider GPS");
+        return;
+      }
+
+      const riderId = activeBroadcastRiderId || ridersCache[0]?.id;
+      if (!riderId) {
+        showToast("Add or select a trusted rider first.");
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        showToast("Geolocation is not supported on this device.");
+        return;
+      }
+
+      gpsBtn.textContent = "Broadcast Live GPS: On";
+      gpsBtn.classList.replace("btn-outline", "btn-amber");
+      gpsBadge.textContent = "GPS Broadcasting";
+      showToast("Broadcasting live rider coordinates");
+
+      watchId = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const pingRow = {
+            trusted_rider_id: riderId,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            heading: pos.coords.heading,
+            updated_at: new Date().toISOString()
+          };
+          liveMap.upsertRiderPing(pingRow);
+          document.getElementById("lastPingText").textContent =
+            `Live ping: ${pingRow.lat.toFixed(5)}, ${pingRow.lng.toFixed(5)}`;
+
+          await supabase
+            .from("rider_locations")
+            .upsert(pingRow, { onConflict: "trusted_rider_id" });
+        },
+        (err) => showToast(err.message || "Unable to read GPS"),
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    });
+
+    window.selectBroadcastRider = (riderId) => {
+      activeBroadcastRiderId = riderId;
+      showToast("Selected rider for live GPS broadcast");
+    };
+
+    window.assignOrUpdateLeg = async (deliveryId, riderId, status) => {
+      if (riderId) activeBroadcastRiderId = riderId;
+      await updateDeliveryLeg(deliveryId, { trustedRiderId: riderId, status });
+      showToast("Delivery leg updated");
+      await refresh();
+    };
+
+    document.getElementById("inviteRiderForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        const created = await inviteTrustedRider({
+          riderLabel: document.getElementById("riderLabel").value,
+          vehicleType: document.getElementById("vehicleType").value,
+          routeScope: document.getElementById("routeScope").value
+        });
+        activeBroadcastRiderId = created.id;
+        e.target.reset();
+        showToast("Trusted rider added");
+        await refresh();
+      } catch (err) {
+        showToast(err.message);
+      }
+    });
+
+    async function refresh() {
+      ridersCache = await fetchTrustedRiders();
+      if (!activeBroadcastRiderId && ridersCache.length > 0) {
+        activeBroadcastRiderId = ridersCache[0].id;
+      }
+
+      const ridersEl = document.getElementById("ridersList");
+      ridersEl.innerHTML = ridersCache.length
+        ? ridersCache
+            .map(
+              (r) => `
+              <div class="row-item">
+                <div>
+                  <strong style="font-size:0.85rem;">${r.rider_label}</strong>
+                  <div style="font-size:0.75rem; color:var(--muted);">${r.vehicle_type} · ${r.route_scope}</div>
+                </div>
+                <button class="btn ${activeBroadcastRiderId === r.id ? "btn-amber" : "btn-outline"}" onclick="selectBroadcastRider('${r.id}')">
+                  ${activeBroadcastRiderId === r.id ? "Active GPS" : "Use Rider"}
+                </button>
+              </div>
+            `
+            )
+            .join("")
+        : `<p style="font-size:0.8rem; color:var(--muted);">No trusted riders added yet.</p>`;
+
+      const delivs = await fetchDeliveriesWithSubOrders();
+      const delivEl = document.getElementById("deliveriesList");
+      delivEl.innerHTML = delivs.length
+        ? delivs
+            .map(
+              (d) => `
+              <div class="row-item">
+                <div>
+                  <strong style="font-size:0.88rem; color:var(--navy-900);">${d.vendor_orders?.vendors?.business_name || "Vendor Sub-Order"}</strong>
+                  <div style="font-size:0.76rem; color:var(--muted);">
+                    To: ${d.vendor_orders?.orders?.delivery_address || "-"} (${d.vendor_orders?.orders?.area_slug || ""})
+                    ${d.vendor_orders?.orders?.running_late ? ` · <strong style="color:#991b1b;">Customer Running Late</strong>` : ""}
+                  </div>
+                </div>
+                <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
+                  <select class="field" style="width:auto;" onchange="assignOrUpdateLeg('${d.id}', this.value, '${d.status}')">
+                    <option value="">Assign Rider</option>
+                    ${ridersCache.map((r) => `<option value="${r.id}" ${d.trusted_rider_id === r.id ? "selected" : ""}>${r.rider_label}</option>`).join("")}
+                  </select>
+                  <select class="field" style="width:auto;" onchange="assignOrUpdateLeg('${d.id}', '${d.trusted_rider_id || ""}', this.value)">
+                    <option value="AWAITING_ASSIGNMENT" ${d.status === "AWAITING_ASSIGNMENT" ? "selected" : ""}>AWAITING_ASSIGNMENT</option>
+                    <option value="ASSIGNED" ${d.status === "ASSIGNED" ? "selected" : ""}>ASSIGNED</option>
+                    <option value="PICKED_UP" ${d.status === "PICKED_UP" ? "selected" : ""}>PICKED_UP</option>
+                    <option value="IN_TRANSIT" ${d.status === "IN_TRANSIT" ? "selected" : ""}>IN_TRANSIT</option>
+                    <option value="DELIVERED" ${d.status === "DELIVERED" ? "selected" : ""}>DELIVERED</option>
+                  </select>
+                </div>
+              </div>
+            `
+            )
+            .join("")
+        : `<p style="font-size:0.83rem; color:var(--muted);">No active delivery legs yet.</p>`;
+    }
+
+    refresh();
+  </script>
+</body>
+</html>

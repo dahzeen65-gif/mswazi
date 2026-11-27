@@ -1,0 +1,75 @@
+/* mswazi1/css/customer.css — Shopping flow, stall cards, cart groups & order tracking */
+.shop-grid {
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (min-width: 580px) {
+  .shop-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 880px) {
+  .shop-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.stall-card {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.stall-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stall-card-title {
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--navy-900);
+}
+
+.stall-card-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.cart-vendor-group {
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cart-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.cart-line:last-child {
+  border-bottom: none;
+}
+
+.suborder-card {
+  background: #f8fafd;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+  margin-top: 0.65rem;
+}
+
+.late-pill {
+  background: #fee2e2;
+  color: #991b1b;
+}

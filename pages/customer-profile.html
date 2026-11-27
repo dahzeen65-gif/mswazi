@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Account &amp; Mode — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .form-group { margin-bottom: 0.85rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+  </style>
+</head>
+<body>
+  <main class="container section" style="max-width:640px;">
+    <a href="./stalls.html" style="font-size:0.84rem; font-weight:700; color:var(--muted); text-decoration:none; display:inline-block; margin-bottom:0.85rem;">← Back to Stalls</a>
+
+    <div class="card" style="padding:1.3rem; margin-bottom:1rem;">
+      <h1 style="font-size:1.4rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Account &amp; Workspace Mode</h1>
+      <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1rem;">Manage your profile details and switch between shopping and managing your vendor stall.</p>
+
+      <div id="modeSwitchBox" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.1rem;"></div>
+
+      <form id="profileForm">
+        <div class="form-group">
+          <label for="fullNameInput">Full Name</label>
+          <input class="field" id="fullNameInput" type="text" required />
+        </div>
+        <div class="form-group">
+          <label for="phoneInput">Phone Number</label>
+          <input class="field" id="phoneInput" type="tel" />
+        </div>
+        <button class="btn btn-navy" type="submit">Save Profile</button>
+      </form>
+    </div>
+
+    <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+      <a href="./vendor-register.html" class="btn btn-amber">Register / Manage Vendor Stall →</a>
+      <button class="btn btn-outline" id="signOutBtn">Sign Out</button>
+    </div>
+  </main>
+
+  <script type="module">
+    import { getCurrentUserContext, showToast } from "../js/app.js";
+    import { supabase } from "../js/supabase.js";
+    import { switchAccountMode, signOutAccount } from "../js/auth.js";
+
+    const { user, profile } = await getCurrentUserContext();
+    const modeBox = document.getElementById("modeSwitchBox");
+
+    if (user && profile) {
+      document.getElementById("fullNameInput").value = profile.full_name || "";
+      document.getElementById("phoneInput").value = profile.phone_number || "";
+
+      modeBox.innerHTML = `
+        <button class="btn ${profile.active_mode === "SHOP" ? "btn-amber" : "btn-outline"}" id="toShopBtn">SHOP Mode</button>
+        <button class="btn ${profile.active_mode === "MY_BUSINESS" ? "btn-amber" : "btn-outline"}" id="toBizBtn">MY BUSINESS Mode</button>
+      `;
+
+      document.getElementById("toShopBtn").onclick = () => switchAccountMode(user.id, "SHOP");
+      document.getElementById("toBizBtn").onclick = () => switchAccountMode(user.id, "MY_BUSINESS");
+
+      document.getElementById("profileForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const { error } = await supabase
+          .from("profiles")
+          .update({
+            full_name: document.getElementById("fullNameInput").value.trim(),
+            phone_number: document.getElementById("phoneInput").value.trim()
+          })
+          .eq("id", user.id);
+
+        if (error) showToast(error.message);
+        else showToast("Profile updated");
+      });
+    } else {
+      modeBox.innerHTML = `<a href="./login.html" class="btn btn-amber">Sign In to Manage Account →</a>`;
+    }
+
+    document.getElementById("signOutBtn").addEventListener("click", signOutAccount);
+  </script>
+</body>
+</html>

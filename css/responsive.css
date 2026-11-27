@@ -1,0 +1,31 @@
+/* mswazi1/css/responsive.css — Breakpoint adjustments & touch target sizing */
+@media (max-width: 639px) {
+  .container {
+    padding: 0 0.85rem;
+  }
+
+  .section {
+    padding: 1.45rem 0;
+  }
+
+  .btn {
+    min-height: 40px;
+    padding: 0.55rem 1rem;
+  }
+
+  .field {
+    min-height: 42px;
+  }
+}
+
+@media (min-width: 640px) {
+  .container {
+    padding: 0 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .section {
+    padding: 2.35rem 0;
+  }
+}

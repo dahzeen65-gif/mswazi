@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Orders &amp; Direct Payments — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/customer.css" />
+  <style>
+    .nav { background: var(--navy-950); color: #fff; border-bottom: 3px solid var(--amber-500); padding: 0.8rem 0; position: sticky; top: 0; z-index: 30; }
+    .nav-inner { max-width: 1040px; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+    .nav-links { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .nav-links a { color: #e2e8f0; text-decoration: none; font-size: 0.84rem; font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 999px; }
+    .nav-links a.active { background: var(--amber-500); color: #fff; }
+    .order-card { padding: 1.15rem; margin-bottom: 1rem; }
+    .ref-row { display: flex; gap: 0.45rem; margin-top: 0.55rem; flex-wrap: wrap; align-items: center; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="../index.html" style="color:#fff; text-decoration:none; font-weight:800; letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">SHOP</span></a>
+      <div class="nav-links">
+        <a href="./stalls.html">Stalls</a>
+        <a href="./cart.html">Cart</a>
+        <a href="./orders.html" class="active">Orders</a>
+        <a href="./customer-profile.html">Account</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section" style="max-width:860px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900);">My Orders &amp; Direct Stall Payments</h1>
+        <p style="font-size:0.85rem; color:var(--muted);">Pay each vendor directly and log your M-Pesa confirmation code per sub-order.</p>
+      </div>
+      <span id="currencyMount"></span>
+    </div>
+
+    <div id="ordersList"></div>
+  </main>
+
+  <script type="module">
+    import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+    import { fetchCustomerOrders, submitSubOrderPaymentProof, toggleOrderRunningLate } from "../js/orders.js";
+
+    const CHANNEL_LABELS = {
+      MPESA_SEND: "M-Pesa Send Money",
+      MPESA_TILL: "M-Pesa Buy Goods Till",
+      MPESA_PAYBILL: "M-Pesa Paybill",
+      COD_ONLY: "Cash on Delivery"
+    };
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("ordersCurrencySelect");
+    document.getElementById("ordersCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      renderOrders();
+    });
+
+    window.submitProof = async (subOrderId) => {
+      const input = document.getElementById(`ref-${subOrderId}`);
+      if (!input) return;
+      try {
+        await submitSubOrderPaymentProof(subOrderId, input.value);
+        showToast("Payment reference submitted to stall");
+        await renderOrders();
+      } catch (err) {
+        showToast(err.message);
+      }
+    };
+
+    window.markRunningLate = async (orderId, nextLate) => {
+      const note = nextLate ? prompt("Optional hold note for rider/stall (e.g. arriving in 15 mins):") || "" : "";
+      try {
+        await toggleOrderRunningLate(orderId, nextLate, note);
+        showToast(nextLate ? "Marked as running late" : "Running late flag cleared");
+        await renderOrders();
+      } catch (err) {
+        showToast(err.message);
+      }
+    };
+
+    async function renderOrders() {
+      const listEl = document.getElementById("ordersList");
+      const orders = await fetchCustomerOrders();
+
+      if (!orders.length) {
+        listEl.innerHTML = `<div class="card order-card"><strong>No orders found yet</strong><p style="font-size:0.84rem; color:var(--muted); margin-top:0.35rem;">Sign in and place an order from <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Stalls</a> to track vendor sub-orders here.</p></div>`;
+        return;
+      }
+
+      listEl.innerHTML = orders
+        .map((ord) => {
+          const subOrders = Array.isArray(ord.vendor_orders) ? ord.vendor_orders : [];
+          return `
+            <article class="card order-card">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
+                <div>
+                  <strong style="font-size:1rem; color:var(--navy-900);">Order #${String(ord.id).slice(0, 8)}</strong>
+                  <div style="font-size:0.78rem; color:var(--muted);">${ord.area_slug} · ${ord.delivery_address} · ${ord.payment_method}</div>
+                </div>
+                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                  ${ord.running_late ? `<span class="badge late-pill">Running Late</span>` : ""}
+                  <strong style="font-size:1rem; color:var(--navy-900);">${formatKES(ord.total_kes)}</strong>
+                </div>
+              </div>
+
+              ${ord.hold_note ? `<div style="font-size:0.78rem; color:#991b1b; margin-top:0.4rem;">Note: ${ord.hold_note}</div>` : ""}
+
+              <div style="margin-top:0.65rem;">
+                ${subOrders
+                  .map((vo) => {
+                    const v = vo.vendors || {};
+                    const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
+                    const refLabel = v.payment_account_ref ? `${channel}: ${v.payment_account_ref}` : channel;
+                    const isConfirmed = vo.payment_status === "PAID_CONFIRMED";
+                    return `
+                      <div class="suborder-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                          <div>
+                            <strong style="font-size:0.9rem; color:var(--navy-900);">${v.business_name || "Vendor Stall"}</strong>
+                            <div style="font-size:0.76rem; color:var(--muted);">Subtotal: ${formatKES(vo.subtotal_kes)} · Fulfillment: ${vo.status}</div>
+                            <div style="font-size:0.76rem; color:var(--navy-800); margin-top:0.2rem;">Direct Pay: <strong>${refLabel}</strong>${v.payment_account_name ? ` (${v.payment_account_name})` : ""}</div>
+                          </div>
+                          <span class="badge ${isConfirmed ? "badge-active" : ""}">${vo.payment_status || "UNPAID"}</span>
+                        </div>
+
+                        <div class="ref-row">
+                          <input
+                            class="field"
+                            style="max-width:220px;"
+                            id="ref-${vo.id}"
+                            type="text"
+                            value="${vo.payment_reference || ""}"
+                            placeholder="M-Pesa code (e.g. TKL89ABC12)"
+                            ${isConfirmed ? "disabled" : ""}
+                          />
+                          ${
+                            isConfirmed
+                              ? `<span style="font-size:0.78rem; color:#166534; font-weight:700;">Confirmed by stall</span>`
+                              : `<button class="btn btn-amber" onclick="submitProof('${vo.id}')">Submit Payment Code</button>`
+                          }
+                        </div>
+                      </div>
+                    `;
+                  })
+                  .join("")}
+              </div>
+
+              <div style="margin-top:0.8rem; display:flex; justify-content:flex-end;">
+                <button class="btn btn-outline" onclick="markRunningLate('${ord.id}', ${!ord.running_late})">
+                  ${ord.running_late ? "I've Arrived / Clear Late" : "Running Late?"}
+                </button>
+              </div>
+            </article>
+          `;
+        })
+        .join("");
+    }
+
+    renderOrders();
+  </script>
+</body>
+</html>

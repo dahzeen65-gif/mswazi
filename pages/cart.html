@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Vendor Cart — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/customer.css" />
+  <style>
+    .nav { background: var(--navy-950); color: #fff; border-bottom: 3px solid var(--amber-500); padding: 0.8rem 0; position: sticky; top: 0; z-index: 30; }
+    .nav-inner { max-width: 1040px; margin: 0 auto; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; }
+    .nav-links { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .nav-links a { color: #e2e8f0; text-decoration: none; font-size: 0.84rem; font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 999px; }
+    .nav-links a.active { background: var(--amber-500); color: #fff; }
+    .qty-controls { display: flex; align-items: center; gap: 0.4rem; }
+    .qty-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-weight: 800; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="../index.html" style="color:#fff; text-decoration:none; font-weight:800; letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">SHOP</span></a>
+      <div class="nav-links">
+        <a href="./stalls.html">Stalls</a>
+        <a href="./cart.html" class="active">Cart</a>
+        <a href="./orders.html">Orders</a>
+        <a href="./customer-profile.html">Account</a>
+        <span id="currencyMount"></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section" style="max-width:860px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
+      <div>
+        <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900);">Your Multi-Vendor Cart</h1>
+        <p style="font-size:0.85rem; color:var(--muted);">Items are grouped by stall so each vendor gets its own sub-order and direct payment.</p>
+      </div>
+      <a href="./stalls.html" class="btn btn-outline">+ Add More Items</a>
+    </div>
+
+    <div id="cartGroupsContainer"></div>
+
+    <div class="card" style="padding:1.15rem; margin-top:1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;" id="cartSummaryBar">
+      <div>
+        <div style="font-size:0.8rem; color:var(--muted);">Combined Cart Total</div>
+        <strong style="font-size:1.3rem; color:var(--navy-900);" id="grandTotalText">KES 0</strong>
+      </div>
+      <a href="./checkout.html" class="btn btn-amber" id="proceedCheckoutBtn">Proceed to Combined Checkout →</a>
+    </div>
+  </main>
+
+  <script type="module">
+    import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+    import { loadCartItems, groupCartByVendor, updateCartItemQuantity, removeCartItem } from "../js/cart.js";
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("cartCurrencySelect");
+    document.getElementById("cartCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      renderCart();
+    });
+
+    window.changeQty = async (productId, nextQty) => {
+      await updateCartItemQuantity(productId, nextQty);
+      showToast("Cart updated");
+      await renderCart();
+    };
+
+    window.deleteLine = async (productId) => {
+      await removeCartItem(productId);
+      showToast("Item removed");
+      await renderCart();
+    };
+
+    async function renderCart() {
+      const container = document.getElementById("cartGroupsContainer");
+      const items = await loadCartItems();
+      const { groups, grandTotalKes } = groupCartByVendor(items);
+
+      document.getElementById("grandTotalText").textContent = formatKES(grandTotalKes);
+      const checkoutBtn = document.getElementById("proceedCheckoutBtn");
+      checkoutBtn.style.pointerEvents = items.length ? "auto" : "none";
+      checkoutBtn.style.opacity = items.length ? "1" : "0.5";
+
+      if (!groups.length) {
+        container.innerHTML = `<div class="card cart-vendor-group"><strong>Your cart is empty</strong><p style="font-size:0.84rem; color:var(--muted); margin-top:0.35rem;">Browse <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">approved stalls</a> to add items.</p></div>`;
+        return;
+      }
+
+      container.innerHTML = groups
+        .map(
+          (g) => `
+          <section class="card cart-vendor-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+              <strong style="font-size:1rem; color:var(--navy-900);">${g.vendor_name}</strong>
+              <strong style="font-size:0.95rem; color:var(--amber-600);">Subtotal: ${formatKES(g.subtotal_kes)}</strong>
+            </div>
+            ${g.items
+              .map(
+                (item) => `
+                <div class="cart-line">
+                  <div>
+                    <strong style="font-size:0.9rem; color:var(--navy-900);">${item.product_name}</strong>
+                    <div style="font-size:0.78rem; color:var(--muted);">${formatKES(item.price_kes)} / ${item.unit_label || "unit"}</div>
+                  </div>
+                  <div class="qty-controls">
+                    <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) - 1})">-</button>
+                    <span style="min-width:24px; text-align:center; font-weight:700;">${item.quantity}</span>
+                    <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) + 1})">+</button>
+                    <button class="btn btn-outline" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick="deleteLine('${item.product_id}')">Remove</button>
+                  </div>
+                </div>
+              `
+              )
+              .join("")}
+          </section>
+        `
+        )
+        .join("");
+    }
+
+    renderCart();
+  </script>
+</body>
+</html>

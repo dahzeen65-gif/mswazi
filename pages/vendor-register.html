@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Register Vendor Stall — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <style>
+    .form-group { margin-bottom: 0.85rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+    .section-divider { border-top: 1px solid var(--border); margin: 1.1rem 0 0.9rem; padding-top: 0.9rem; font-size: 0.85rem; font-weight: 800; color: var(--navy-900); }
+  </style>
+</head>
+<body>
+  <main class="container section" style="max-width:660px;">
+    <a href="./customer-profile.html" style="font-size:0.84rem; font-weight:700; color:var(--muted); text-decoration:none; display:inline-block; margin-bottom:0.85rem;">← Back to Account</a>
+
+    <div class="card" style="padding:1.35rem;">
+      <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Register Your Business Stall</h1>
+      <p style="font-size:0.85rem; color:var(--muted); margin-bottom:1.1rem;">Submit your stall details and your direct payment receiving details so buyers pay your account directly.</p>
+
+      <form id="vendorRegForm">
+        <div class="form-group">
+          <label for="bizName">Stall / Business Name</label>
+          <input class="field" id="bizName" type="text" required placeholder="e.g. Miritini Fresh Greens Stall" />
+        </div>
+        <div class="form-group">
+          <label for="bizCategory">Business Category</label>
+          <select class="field" id="bizCategory">
+            <option value="Grocery & Fresh Produce">Grocery &amp; Fresh Produce</option>
+            <option value="Food & Restaurants">Food &amp; Restaurants</option>
+            <option value="General Retail">General Retail</option>
+            <option value="Hardware & Building Supplies">Hardware &amp; Building Supplies</option>
+            <option value="Fashion & Clothing">Fashion &amp; Clothing</option>
+            <option value="Tours & Safaris">Tours &amp; Safaris</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="bizArea">Service Area</label>
+          <select class="field" id="bizArea"></select>
+        </div>
+        <div class="form-group">
+          <label for="bizHours">Operating Hours</label>
+          <input class="field" id="bizHours" type="text" value="07:00 AM - 08:30 PM" required />
+        </div>
+        <div class="form-group">
+          <label for="bizDesc">Stall Description</label>
+          <input class="field" id="bizDesc" type="text" required placeholder="What does your stall offer to local customers?" />
+        </div>
+
+        <div class="section-divider">Direct Buyer Payment Details</div>
+        <div class="form-group">
+          <label for="paymentChannel">Receiving Payment Method</label>
+          <select class="field" id="paymentChannel">
+            <option value="MPESA_SEND">M-Pesa Phone / Send Money</option>
+            <option value="MPESA_TILL">M-Pesa Buy Goods Till</option>
+            <option value="MPESA_PAYBILL">M-Pesa Paybill (Business + Account)</option>
+            <option value="COD_ONLY">Cash on Delivery / Direct Handover</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="paymentAccountRef">Till / Paybill / Phone Number</label>
+          <input class="field" id="paymentAccountRef" type="text" required placeholder="e.g. 07XX XXX XXX or Till 555123" />
+        </div>
+        <div class="form-group">
+          <label for="paymentAccountName">Registered Account / Business Name</label>
+          <input class="field" id="paymentAccountName" type="text" required placeholder="Name shown when buyer pays" />
+        </div>
+        <div class="form-group">
+          <label for="paymentInstructions">Extra Payment Note (Optional)</label>
+          <input class="field" id="paymentInstructions" type="text" placeholder="e.g. Include your name or order ref in M-Pesa note" />
+        </div>
+
+        <button class="btn btn-amber" style="width:100%;" type="submit" id="submitVendorBtn">Submit Stall Application →</button>
+      </form>
+      <p id="vendorRegMsg" style="font-size:0.83rem; color:var(--navy-900); margin-top:0.75rem;"></p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "../js/supabase.js";
+    import { getCurrentUserContext, showToast } from "../js/app.js";
+    import { fetchServiceAreas } from "../js/location.js";
+
+    const areas = await fetchServiceAreas();
+    const bizArea = document.getElementById("bizArea");
+    bizArea.innerHTML = areas.map((a) => `<option value="${a.slug}">${a.name} (${a.sub_county})</option>`).join("");
+
+    const slugify = (str) =>
+      str
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "");
+
+    document.getElementById("vendorRegForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const msgEl = document.getElementById("vendorRegMsg");
+      const { user } = await getCurrentUserContext();
+
+      if (!user) {
+        msgEl.textContent = "Please sign in first before submitting a vendor stall application.";
+        return;
+      }
+
+      const name = document.getElementById("bizName").value.trim();
+      const slug = `${slugify(name)}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+      const { error } = await supabase.from("vendors").insert({
+        owner_id: user.id,
+        slug,
+        business_name: name,
+        category: document.getElementById("bizCategory").value,
+        area_slug: bizArea.value,
+        opening_hours: document.getElementById("bizHours").value.trim(),
+        description: document.getElementById("bizDesc").value.trim(),
+        payment_channel: document.getElementById("paymentChannel").value,
+        payment_account_ref: document.getElementById("paymentAccountRef").value.trim(),
+        payment_account_name: document.getElementById("paymentAccountName").value.trim(),
+        payment_instructions: document.getElementById("paymentInstructions").value.trim(),
+        approval_status: "PENDING",
+        is_open: true
+      });
+
+      if (error) {
+        msgEl.textContent = error.message;
+      } else {
+        await supabase.from("profiles").update({ active_mode: "MY_BUSINESS" }).eq("id", user.id);
+        showToast("Stall application submitted!");
+        window.location.href = "./vendor-dashboard.html";
+      }
+    });
+  </script>
+</body>
+</html>

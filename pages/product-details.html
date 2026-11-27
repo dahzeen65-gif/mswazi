@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Details — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+</head>
+<body>
+  <main class="container section" style="max-width:680px;">
+    <a href="javascript:history.back()" style="font-size:0.85rem; font-weight:700; color:var(--muted); text-decoration:none; display:inline-block; margin-bottom:1rem;">← Back</a>
+
+    <div class="card" style="padding:1.4rem;" id="detailCard">
+      <p style="color:var(--muted);">Loading product details...</p>
+    </div>
+  </main>
+
+  <script type="module">
+    import { fetchProductById } from "../js/products.js";
+    import { fetchVendorByIdOrSlug } from "../js/vendors.js";
+    import { formatKES, showToast } from "../js/app.js";
+
+    const params = new URLSearchParams(window.location.search);
+    const productId = params.get("id");
+    const vendorParam = params.get("vendor");
+
+    const product = await fetchProductById(productId);
+    const vendor = await fetchVendorByIdOrSlug(vendorParam || product?.vendor_id);
+    const card = document.getElementById("detailCard");
+
+    if (!product) {
+      card.innerHTML = `<p>Product not found.</p>`;
+    } else {
+      card.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+          <span class="badge">${product.category || "Item"}</span>
+          <span class="badge badge-active">${product.stock_qty > 0 ? `${product.stock_qty} in stock` : "Limited"}</span>
+        </div>
+        <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900); margin-bottom:0.35rem;">${product.name}</h1>
+        <p style="font-size:0.84rem; color:var(--muted); margin-bottom:0.8rem;">
+          Sold by <a href="./vendor-store.html?vendor=${encodeURIComponent(vendor?.slug || vendor?.id || "")}" style="color:var(--amber-600); font-weight:700; text-decoration:none;">${vendor?.business_name || "Approved Stall"}</a>
+        </p>
+        <p style="font-size:0.92rem; color:var(--text); margin-bottom:1rem;">${product.description || ""}</p>
+        <div style="font-size:1.25rem; font-weight:800; color:var(--navy-900); margin-bottom:1.15rem;">
+          ${formatKES(product.price_kes)} <span style="font-size:0.8rem; font-weight:500; color:var(--muted);">/ ${product.unit_label || "unit"}</span>
+        </div>
+        <div style="display:flex; gap:0.6rem; align-items:center; flex-wrap:wrap;">
+          <input class="field" id="qtyInput" type="number" min="1" max="99" value="1" style="width:90px;" aria-label="Quantity" />
+          <button class="btn btn-amber" id="addBtn">Add to Combined Cart</button>
+          <a href="./cart.html" class="btn btn-outline">Go to Cart</a>
+        </div>
+      `;
+
+      document.getElementById("addBtn").addEventListener("click", () => {
+        const qty = Math.max(1, parseInt(document.getElementById("qtyInput").value, 10) || 1);
+        const cart = JSON.parse(localStorage.getItem("mswazi_guest_cart") || "[]");
+        const existing = cart.find((i) => i.product_id === product.id);
+        if (existing) {
+          existing.quantity += qty;
+        } else {
+          cart.push({
+            product_id: product.id,
+            product_name: product.name,
+            price_kes: Number(product.price_kes),
+            vendor_id: vendor?.id || product.vendor_id,
+            vendor_name: vendor?.business_name || "MSWAZI Stall",
+            quantity: qty
+          });
+        }
+        localStorage.setItem("mswazi_guest_cart", JSON.stringify(cart));
+        showToast(`Added ${qty} × "${product.name}" to cart`);
+      });
+    }
+  </script>
+</body>
+</html>
