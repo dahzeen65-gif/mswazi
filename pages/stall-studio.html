@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stall Studio — Products &amp; Media — MSWAZI</title>
+  <link rel="stylesheet" href="../css/style.css" />
+  <link rel="stylesheet" href="../css/components.css" />
+  <link rel="stylesheet" href="../css/dashboard.css" />
+  <style>
+    .studio-grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 1.1rem; align-items: start; }
+    @media (max-width: 860px) { .studio-grid { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
+    .field label { font-size: 0.78rem; font-weight: 700; color: var(--navy-900); }
+    .field input, .field textarea, .field select {
+      padding: 0.55rem 0.7rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      background: #fff;
+    }
+    .media-strip { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .media-thumb {
+      position: relative;
+      width: 88px;
+      height: 88px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e2e8f0;
+      background: #0f172a;
+    }
+    .media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .media-remove {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      background: rgba(15, 23, 42, 0.8);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      width: 20px;
+      height: 20px;
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+    .product-card {
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 0.75rem;
+      margin-bottom: 0.65rem;
+      background: #fff;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .product-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <header class="dash-topbar">
+    <div class="dash-topbar-inner">
+      <strong style="letter-spacing:0.04em;">MSWAZI <span style="color:var(--amber-500);">STALL STUDIO</span></strong>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap; align-items:center;">
+        <span id="currencyMount"></span>
+        <a href="./stalls.html" class="btn btn-outline">View Live Stalls</a>
+        <a href="./customer-profile.html" class="btn btn-amber">Account</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container section">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1rem;">
+      <div>
+        <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900);" id="stallHeading">Your Stall Studio</h1>
+        <p style="font-size:0.84rem; color:var(--muted);">Arrange product display order and upload photos or short demo videos</p>
+      </div>
+      <span id="stallStatusBadge" class="badge">Loading...</span>
+    </div>
+
+    <!-- Stall Intro Video Card -->
+    <div class="card dash-panel" style="margin-bottom:1.1rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.75rem;">
+        <div>
+          <strong style="font-size:0.95rem; color:var(--navy-900);">Stall Walkthrough / Promo Video</strong>
+          <div style="font-size:0.78rem; color:var(--muted);">Optional short MP4/WebM video (max 20 MB) shown on your stall</div>
+        </div>
+        <label class="btn btn-outline" style="cursor:pointer;">
+          Upload Stall Video
+          <input id="stallVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime" hidden />
+        </label>
+      </div>
+      <div id="stallVideoPreview" style="margin-top:0.75rem;"></div>
+    </div>
+
+    <div class="studio-grid">
+      <!-- Left: Add / Edit Product Form -->
+      <section class="card dash-panel">
+        <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.65rem;" id="formTitle">
+          Add New Product
+        </h2>
+        <form id="productForm">
+          <input type="hidden" id="editingProductId" />
+
+          <div class="field">
+            <label for="prodName">Product Name</label>
+            <input id="prodName" type="text" required placeholder="e.g., Fresh Spiced Mandazi Pack" />
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">
+            <div class="field">
+              <label for="prodPrice">Price (KES)</label>
+              <input id="prodPrice" type="number" min="0" step="1" required placeholder="150" />
+            </div>
+            <div class="field">
+              <label for="prodStock">Stock / Availability</label>
+              <select id="prodStock">
+                <option value="IN_STOCK">In Stock</option>
+                <option value="LOW_STOCK">Low Stock</option>
+                <option value="SOLD_OUT">Sold Out</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="prodDesc">Description</label>
+            <textarea id="prodDesc" rows="2" placeholder="Highlight portions, ingredients, or pickup/delivery details..."></textarea>
+          </div>
+
+          <div class="field">
+            <label for="prodMediaFiles">Photos &amp; Videos (Images max 3 MB, Videos max 20 MB)</label>
+            <input id="prodMediaFiles" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple />
+            <div id="draftMediaStrip" class="media-strip"></div>
+          </div>
+
+          <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <button type="submit" id="saveProductBtn" class="btn btn-amber">Save Product</button>
+            <button type="button" id="cancelEditBtn" class="btn btn-outline" style="display:none;">Cancel Edit</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- Right: Arrange Products -->
+      <section class="card dash-panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.65rem;">
+          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900);">Arrange Stall Products</h2>
+          <span style="font-size:0.75rem; color:var(--muted);">Top = First shown</span>
+        </div>
+        <div id="productsArrangeList">
+          <p style="font-size:0.84rem; color:var(--muted);">Loading products...</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { supabase } from "../js/supabase.js";
+    import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
+
+    const BUCKET = "stall-media";
+    const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+    const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+
+    let currentUser = null;
+    let currentVendor = null;
+    let products = [];
+    let draftMedia = []; // [{ url, type: 'image' | 'video' }]
+
+    document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("studioCurrencySelect");
+    document.getElementById("studioCurrencySelect").addEventListener("change", (e) => {
+      setSelectedCurrencyCode(e.target.value);
+      renderProducts();
+    });
+
+    async function uploadMediaFile(file, folderTag) {
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+
+      if (!isVideo && !isImage) {
+        throw new Error(`Unsupported file type: ${file.type || "unknown"}`);
+      }
+      if (isImage && file.size > MAX_IMAGE_BYTES) {
+        throw new Error(`"${file.name}" exceeds the 3 MB image limit.`);
+      }
+      if (isVideo && file.size > MAX_VIDEO_BYTES) {
+        throw new Error(`"${file.name}" exceeds the 20 MB video limit.`);
+      }
+
+      const ext = (file.name.split(".").pop() || (isVideo ? "mp4" : "jpg")).toLowerCase();
+      const uniqueName = `${folderTag}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const path = `${currentUser.id}/${uniqueName}`;
+
+      const { error: upErr } = await supabase.storage
+        .from(BUCKET)
+        .upload(path, file, { contentType: file.type, upsert: false });
+
+      if (upErr) throw upErr;
+
+      const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
+      return { url: data.publicUrl, type: isVideo ? "video" : "image" };
+    }
+
+    function renderDraftMedia() {
+      const strip = document.getElementById("draftMediaStrip");
+      strip.innerHTML = draftMedia.map((item, idx) => `
+        <div class="media-thumb">
+          ${item.type === "video"
+            ? `<video src="${item.url}" muted playsinline></video>`
+            : `<img src="${item.url}" alt="Product media" />`}
+          <button type="button" class="media-remove" data-remove-idx="${idx}" title="Remove">×</button>
+        </div>
+      `).join("");
+
+      strip.querySelectorAll("[data-remove-idx]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          draftMedia.splice(Number(btn.dataset.removeIdx), 1);
+          renderDraftMedia();
+        });
+      });
+    }
+
+    function renderStallVideo() {
+      const box = document.getElementById("stallVideoPreview");
+      if (!currentVendor?.intro_video_url) {
+        box.innerHTML = `<span style="font-size:0.78rem; color:var(--muted);">No stall intro video uploaded yet.</span>`;
+        return;
+      }
+      box.innerHTML = `
+        <video src="${currentVendor.intro_video_url}" controls playsinline style="max-width:340px; width:100%; border-radius:10px;"></video>
+      `;
+    }
+
+    document.getElementById("stallVideoInput").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file || !currentVendor) return;
+      try {
+        showToast("Uploading stall video...");
+        const uploaded = await uploadMediaFile(file, "stall-intro");
+        const { error } = await supabase
+          .from("vendors")
+          .update({ intro_video_url: uploaded.url })
+          .eq("id", currentVendor.id);
+        if (error) throw error;
+        currentVendor.intro_video_url = uploaded.url;
+        renderStallVideo();
+        showToast("Stall video updated!");
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    document.getElementById("prodMediaFiles").addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      try {
+        for (const file of files) {
+          showToast(`Uploading ${file.name}...`);
+          const item = await uploadMediaFile(file, "product");
+          draftMedia.push(item);
+        }
+        renderDraftMedia();
+        showToast("Media attached to product");
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    function resetForm() {
+      document.getElementById("editingProductId").value = "";
+      document.getElementById("formTitle").textContent = "Add New Product";
+      document.getElementById("saveProductBtn").textContent = "Save Product";
+      document.getElementById("cancelEditBtn").style.display = "none";
+      document.getElementById("productForm").reset();
+      draftMedia = [];
+      renderDraftMedia();
+    }
+
+    document.getElementById("cancelEditBtn").addEventListener("click", resetForm);
+
+    document.getElementById("productForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentVendor) return;
+
+      const editingId = document.getElementById("editingProductId").value;
+      const payload = {
+        vendor_id: currentVendor.id,
+        name: document.getElementById("prodName").value.trim(),
+        price_kes: Number(document.getElementById("prodPrice").value),
+        stock_status: document.getElementById("prodStock").value,
+        description: document.getElementById("prodDesc").value.trim(),
+        media: draftMedia
+      };
+
+      const btn = document.getElementById("saveProductBtn");
+      btn.disabled = true;
+
+      try {
+        if (editingId) {
+          const { error } = await supabase.from("products").update(payload).eq("id", editingId);
+          if (error) throw error;
+          showToast("Product updated");
+        } else {
+          payload.sort_order = products.length;
+          const { error } = await supabase.from("products").insert(payload);
+          if (error) throw error;
+          showToast("Product added to your stall");
+        }
+        resetForm();
+        await loadProducts();
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    async function swapOrder(indexA, indexB) {
+      if (indexB < 0 || indexB >= products.length) return;
+      const itemA = products[indexA];
+      const itemB = products[indexB];
+
+      await Promise.all([
+        supabase.from("products").update({ sort_order: indexB }).eq("id", itemA.id),
+        supabase.from("products").update({ sort_order: indexA }).eq("id", itemB.id)
+      ]);
+
+      showToast("Product order updated");
+      await loadProducts();
+    }
+
+    function startEditProduct(prod) {
+      document.getElementById("editingProductId").value = prod.id;
+      document.getElementById("formTitle").textContent = `Edit: ${prod.name}`;
+      document.getElementById("saveProductBtn").textContent = "Update Product";
+      document.getElementById("cancelEditBtn").style.display = "inline-flex";
+      document.getElementById("prodName").value = prod.name || "";
+      document.getElementById("prodPrice").value = prod.price_kes ?? 0;
+      document.getElementById("prodStock").value = prod.stock_status || "IN_STOCK";
+      document.getElementById("prodDesc").value = prod.description || "";
+      draftMedia = Array.isArray(prod.media) ? [...prod.media] : [];
+      renderDraftMedia();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    function renderProducts() {
+      const container = document.getElementById("productsArrangeList");
+      if (!products.length) {
+        container.innerHTML = `<p style="font-size:0.84rem; color:var(--muted);">No products in your stall yet. Add your first item on the left.</p>`;
+        return;
+      }
+
+      container.innerHTML = products.map((p, idx) => {
+        const mediaArr = Array.isArray(p.media) ? p.media : [];
+        const firstImg = mediaArr.find((m) => m.type === "image")?.url;
+        const videoCount = mediaArr.filter((m) => m.type === "video").length;
+        const photoCount = mediaArr.filter((m) => m.type === "image").length;
+
+        return `
+          <div class="product-card">
+            <div style="display:flex; gap:0.65rem; align-items:center;">
+              <div style="width:54px; height:54px; border-radius:8px; overflow:hidden; background:#f1f5f9; flex-shrink:0;">
+                ${firstImg
+                  ? `<img src="${firstImg}" alt="${p.name}" style="width:100%; height:100%; object-fit:cover;" />`
+                  : `<div style="height:100%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; color:#64748b;">No img</div>`}
+              </div>
+              <div>
+                <strong style="font-size:0.92rem; color:var(--navy-900);">#${idx + 1} · ${p.name}</strong>
+                <div style="font-size:0.8rem; color:var(--navy-800); font-weight:700;">${formatKES(p.price_kes || 0)}</div>
+                <div style="font-size:0.72rem; color:var(--muted);">${photoCount} photo(s) · ${videoCount} video(s) · ${p.stock_status || "IN_STOCK"}</div>
+              </div>
+            </div>
+
+            <div class="product-actions">
+              <button type="button" class="btn btn-outline" data-up="${idx}" ${idx === 0 ? "disabled" : ""}>↑</button>
+              <button type="button" class="btn btn-outline" data-down="${idx}" ${idx === products.length - 1 ? "disabled" : ""}>↓</button>
+              <button type="button" class="btn btn-outline" data-edit="${p.id}">Edit</button>
+              <button type="button" class="btn btn-outline" data-del="${p.id}">Delete</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+
+      container.querySelectorAll("[data-up]").forEach((btn) => {
+        btn.addEventListener("click", () => swapOrder(Number(btn.dataset.up), Number(btn.dataset.up) - 1));
+      });
+      container.querySelectorAll("[data-down]").forEach((btn) => {
+        btn.addEventListener("click", () => swapOrder(Number(btn.dataset.down), Number(btn.dataset.down) + 1));
+      });
+      container.querySelectorAll("[data-edit]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const prod = products.find((item) => String(item.id) === String(btn.dataset.edit));
+          if (prod) startEditProduct(prod);
+        });
+      });
+      container.querySelectorAll("[data-del]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("Delete this product from your stall?")) return;
+          const { error } = await supabase.from("products").delete().eq("id", btn.dataset.del);
+          if (error) return showToast(error.message);
+          showToast("Product removed");
+          await loadProducts();
+        });
+      });
+    }
+
+    async function loadProducts() {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("vendor_id", currentVendor.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        showToast(error.message);
+        return;
+      }
+      products = Array.isArray(data) ? data : [];
+      renderProducts();
+    }
+
+    async function initStudio() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        window.location.replace("./login.html");
+        return;
+      }
+      currentUser = user;
+
+      // Match vendor owned by this user (adjust column if your vendors table uses owner_id or profile_id)
+      const { data: vendorRows } = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("user_id", user.id)
+        .limit(1);
+
+      currentVendor = vendorRows?.[0] || null;
+      if (!currentVendor) {
+        document.getElementById("stallHeading").textContent = "No Business Stall Linked Yet";
+        document.getElementById("stallStatusBadge").textContent = "VENDOR SETUP REQUIRED";
+        document.getElementById("productsArrangeList").innerHTML =
+          `<p style="font-size:0.84rem; color:var(--muted);">Register or open your vendor stall profile first to add products and media.</p>`;
+        return;
+      }
+
+      document.getElementById("stallHeading").textContent = `${currentVendor.business_name} — Stall Studio`;
+      document.getElementById("stallStatusBadge").textContent = currentVendor.approval_status || "PENDING";
+      renderStallVideo();
+      await loadProducts();
+    }
+
+    initStudio();
+  </script>
+</body>
+</html>
