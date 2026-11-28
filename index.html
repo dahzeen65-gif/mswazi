@@ -51,11 +51,14 @@
       color: var(--navy-900);
     }
     .brand-mark {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
+      max-width: 32px;
+      max-height: 32px;
       border-radius: 10px;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
+      flex-shrink: 0;
       border: 1px solid var(--amber-500);
     }
     .brand-title { font-weight: 800; font-size: 1.08rem; letter-spacing: 0.04em; line-height: 1.1; }
