@@ -16,6 +16,36 @@
     .filter-bar { display: grid; grid-template-columns: 1fr; gap: 0.65rem; margin-bottom: 1rem; }
     @media (min-width: 680px) { .filter-bar { grid-template-columns: 220px 220px 1fr auto; } }
     .stall-desc { font-size: 0.84rem; color: var(--muted); margin-bottom: 0.4rem; }
+
+    /* Stall Cover Media Banner */
+    .stall-cover-frame {
+      position: relative;
+      width: 100%;
+      height: 155px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0f172a;
+      margin-bottom: 0.65rem;
+      border: 1px solid #e2e8f0;
+    }
+    .stall-cover-frame img,
+    .stall-cover-frame video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .stall-video-tag {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      background: rgba(15, 23, 42, 0.82);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 700;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+    }
   </style>
 </head>
 <body>
@@ -138,6 +168,25 @@
       liveMap.focusStall(stall, idx);
     };
 
+    function buildStallCoverHtml(vendor) {
+      if (!vendor.stall_media_url) return "";
+
+      if (vendor.stall_media_type === "video") {
+        return `
+          <div class="stall-cover-frame">
+            <video src="${vendor.stall_media_url}" muted loop autoplay playsinline preload="metadata"></video>
+            <span class="stall-video-tag">Stall Video</span>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="stall-cover-frame">
+          <img src="${vendor.stall_media_url}" alt="${vendor.business_name}" loading="lazy" />
+        </div>
+      `;
+    }
+
     async function render(shouldFocusArea = false) {
       const currentArea = areas.find((a) => a.slug === selectedArea) || areas[0];
       areaBadge.textContent = currentArea?.is_active ? `${currentArea.name} · Active` : `${currentArea?.name || "Area"} · Inactive`;
@@ -176,6 +225,7 @@
         .map(
           (v, idx) => `
           <article class="card stall-card">
+            ${buildStallCoverHtml(v)}
             <div class="stall-card-header">
               <span class="badge">${v.category}</span>
               <span class="badge badge-active">${v.plan_tier === "SPOTLIGHT" ? "Spotlight · Open" : v.is_open ? "Open · Live" : "Closed"}</span>
