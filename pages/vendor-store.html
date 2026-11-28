@@ -14,6 +14,80 @@
     .nav-links a { color: #e2e8f0; text-decoration: none; font-size: 0.84rem; font-weight: 600; padding: 0.35rem 0.65rem; border-radius: 999px; }
     .nav-links a.active { background: var(--amber-500); color: #fff; }
     .prod-desc { font-size: 0.82rem; color: var(--muted); }
+
+    /* Stall Hero Cover Media */
+    .stall-hero-media {
+      margin-top: 1rem;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: #0f172a;
+      max-height: 290px;
+    }
+    .stall-hero-media img,
+    .stall-hero-media video {
+      width: 100%;
+      max-height: 290px;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Product Media Stage & Thumbnails */
+    .prod-media-stage {
+      position: relative;
+      width: 100%;
+      height: 185px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #0f172a;
+      border: 1px solid #e2e8f0;
+      margin-bottom: 0.55rem;
+    }
+    .prod-media-stage img,
+    .prod-media-stage video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .prod-thumbs {
+      display: flex;
+      gap: 0.4rem;
+      flex-wrap: wrap;
+      margin-bottom: 0.5rem;
+    }
+    .prod-thumb-btn {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      border-radius: 6px;
+      overflow: hidden;
+      border: 2px solid transparent;
+      background: #0f172a;
+      cursor: pointer;
+      position: relative;
+    }
+    .prod-thumb-btn.active {
+      border-color: var(--amber-500);
+    }
+    .prod-thumb-btn img,
+    .prod-thumb-btn video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .prod-thumb-play {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15, 23, 42, 0.45);
+      color: #fff;
+      font-size: 0.68rem;
+      font-weight: 800;
+    }
   </style>
 </head>
 <body>
@@ -42,6 +116,7 @@
         </div>
         <a href="./cart.html" class="btn btn-amber">View Cart →</a>
       </div>
+      <div id="stallHeroMediaMount"></div>
     </div>
   </section>
 
@@ -66,6 +141,37 @@
 
     let products = [];
 
+    function sortProductsByVendorArrangement(list) {
+      return [...list].sort((a, b) => {
+        const aOrder = Number.isFinite(Number(a.sort_order)) ? Number(a.sort_order) : 9999;
+        const bOrder = Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : 9999;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+      });
+    }
+
+    function renderStallHeroMedia(v) {
+      const mount = document.getElementById("stallHeroMediaMount");
+      if (!v?.stall_media_url) {
+        mount.innerHTML = "";
+        return;
+      }
+
+      if (v.stall_media_type === "video") {
+        mount.innerHTML = `
+          <div class="stall-hero-media">
+            <video src="${v.stall_media_url}" controls playsinline preload="metadata"></video>
+          </div>
+        `;
+      } else {
+        mount.innerHTML = `
+          <div class="stall-hero-media">
+            <img src="${v.stall_media_url}" alt="${v.business_name}" />
+          </div>
+        `;
+      }
+    }
+
     if (!vendor) {
       document.getElementById("stallName").textContent = "Stall Not Found";
       document.getElementById("productsContainer").innerHTML = `<div class="card product-card" style="grid-column:1/-1;"><strong>Stall unavailable</strong><span class="prod-desc">Return to <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Stalls</a> to browse approved shops.</span></div>`;
@@ -76,16 +182,76 @@
       document.getElementById("stallDesc").textContent = vendor.description || "Independent neighbourhood stall.";
       document.getElementById("stallMeta").textContent = `Area: ${vendor.area_slug} · Hours: ${vendor.opening_hours || "Daily"} · ${vendor.is_open === false ? "Currently Closed" : "Open"}`;
 
-      products = await fetchProductsByVendor(vendor.id);
+      renderStallHeroMedia(vendor);
+      const rawProducts = await fetchProductsByVendor(vendor.id);
+      products = sortProductsByVendorArrangement(rawProducts);
       renderProducts();
     }
 
     window.addItem = async (productId) => {
-      const prod = products.find((p) => p.id === productId);
+      const prod = products.find((p) => String(p.id) === String(productId));
       if (!prod || !vendor) return;
       await addProductToCart({ product: prod, vendor, quantity: 1 });
       showToast(`Added ${prod.name} to cart`);
     };
+
+    window.selectProductMedia = (productId, mediaIndex) => {
+      const prod = products.find((p) => String(p.id) === String(productId));
+      const mediaList = Array.isArray(prod?.media) ? prod.media : [];
+      const chosen = mediaList[mediaIndex];
+      const stage = document.getElementById(`media-stage-${productId}`);
+      if (!chosen || !stage) return;
+
+      stage.innerHTML =
+        chosen.type === "video"
+          ? `<video src="${chosen.url}" controls playsinline preload="metadata"></video>`
+          : `<img src="${chosen.url}" alt="${prod.name}" />`;
+
+      document.querySelectorAll(`[data-prod-thumb="${productId}"]`).forEach((btn, idx) => {
+        btn.classList.toggle("active", idx === mediaIndex);
+      });
+    };
+
+    function buildProductMediaHtml(p) {
+      const mediaList = Array.isArray(p.media) ? p.media : [];
+      if (!mediaList.length) return "";
+
+      const first = mediaList[0];
+      const stageHtml =
+        first.type === "video"
+          ? `<video src="${first.url}" controls playsinline preload="metadata"></video>`
+          : `<img src="${first.url}" alt="${p.name}" loading="lazy" />`;
+
+      const thumbsHtml =
+        mediaList.length > 1
+          ? `<div class="prod-thumbs">
+              ${mediaList
+                .map(
+                  (m, idx) => `
+                  <button
+                    type="button"
+                    class="prod-thumb-btn ${idx === 0 ? "active" : ""}"
+                    data-prod-thumb="${p.id}"
+                    onclick="selectProductMedia('${p.id}', ${idx})"
+                    title="${m.type === "video" ? "Play video" : "View photo"}"
+                  >
+                    ${
+                      m.type === "video"
+                        ? `<video src="${m.url}" muted playsinline></video><span class="prod-thumb-play">▶</span>`
+                        : `<img src="${m.url}" alt="" />`
+                    }
+                  </button>
+                `
+                )
+                .join("")}
+            </div>`
+          : "";
+
+      return `
+        <div class="prod-media-stage" id="media-stage-${p.id}">${stageHtml}</div>
+        ${thumbsHtml}
+      `;
+    }
 
     function renderProducts() {
       const container = document.getElementById("productsContainer");
@@ -101,6 +267,7 @@
         .map(
           (p) => `
           <article class="card product-card">
+            ${buildProductMediaHtml(p)}
             <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
               <span class="badge">${p.category || vendor.category}</span>
               <span style="font-size:0.75rem; color:var(--muted);">Stock: ${p.stock_qty ?? 0}</span>

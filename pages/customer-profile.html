@@ -9,6 +9,38 @@
   <style>
     .form-group { margin-bottom: 0.85rem; }
     .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
+
+    /* Profile Avatar Header */
+    .avatar-row {
+      display: flex;
+      align-items: center;
+      gap: 0.95rem;
+      margin-bottom: 1.15rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+    .avatar-circle {
+      width: 72px;
+      height: 72px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--navy-900);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.35rem;
+      font-weight: 800;
+      border: 2px solid var(--amber-500);
+      flex-shrink: 0;
+    }
+    .avatar-circle img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -17,7 +49,23 @@
 
     <div class="card" style="padding:1.3rem; margin-bottom:1rem;">
       <h1 style="font-size:1.4rem; font-weight:800; color:var(--navy-900); margin-bottom:0.25rem;">Account &amp; Workspace Mode</h1>
-      <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1rem;">Manage your profile details and switch between shopping and managing your vendor stall.</p>
+      <p style="font-size:0.84rem; color:var(--muted); margin-bottom:1rem;">Manage your profile photo, details, and switch between shopping and managing your vendor stall.</p>
+
+      <div class="avatar-row" id="avatarSection" style="display:none;">
+        <div class="avatar-circle" id="avatarCircle">M</div>
+        <div style="flex:1; min-width:180px;">
+          <strong style="display:block; font-size:0.95rem; color:var(--navy-900);" id="avatarDisplayName">Member</strong>
+          <span style="display:block; font-size:0.78rem; color:var(--muted); margin-bottom:0.45rem;" id="avatarEmailText"></span>
+          <div style="display:flex; gap:0.45rem; flex-wrap:wrap; align-items:center;">
+            <label class="btn btn-outline" style="padding:0.35rem 0.7rem; font-size:0.78rem; cursor:pointer;">
+              Change Photo
+              <input id="avatarFileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+            </label>
+            <button type="button" class="btn btn-outline" id="removeAvatarBtn" style="padding:0.35rem 0.7rem; font-size:0.78rem; display:none;">Remove</button>
+          </div>
+          <span style="display:block; font-size:0.72rem; color:var(--muted); margin-top:0.3rem;">JPG, PNG, or WebP · Max 2 MB</span>
+        </div>
+      </div>
 
       <div id="modeSwitchBox" style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:1.1rem;"></div>
 
@@ -45,12 +93,99 @@
     import { supabase } from "../js/supabase.js";
     import { switchAccountMode, signOutAccount } from "../js/auth.js";
 
+    const AVATAR_BUCKET = "avatars";
+    const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+
     const { user, profile } = await getCurrentUserContext();
     const modeBox = document.getElementById("modeSwitchBox");
+    const avatarSection = document.getElementById("avatarSection");
+    const avatarCircle = document.getElementById("avatarCircle");
+    const avatarDisplayName = document.getElementById("avatarDisplayName");
+    const avatarEmailText = document.getElementById("avatarEmailText");
+    const removeAvatarBtn = document.getElementById("removeAvatarBtn");
+
+    function renderAvatar(avatarUrl, nameText) {
+      const cleanName = (nameText || user?.email || "M").trim();
+      const initial = cleanName.charAt(0).toUpperCase();
+      avatarDisplayName.textContent = cleanName;
+      avatarEmailText.textContent = user?.email || "";
+
+      if (avatarUrl) {
+        avatarCircle.innerHTML = `<img src="${avatarUrl}" alt="${cleanName}" />`;
+        removeAvatarBtn.style.display = "inline-flex";
+      } else {
+        avatarCircle.textContent = initial;
+        removeAvatarBtn.style.display = "none";
+      }
+    }
 
     if (user && profile) {
+      avatarSection.style.display = "flex";
       document.getElementById("fullNameInput").value = profile.full_name || "";
       document.getElementById("phoneInput").value = profile.phone_number || "";
+      renderAvatar(profile.avatar_url, profile.full_name);
+
+      document.getElementById("avatarFileInput").addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith("image/")) {
+          showToast("Select a JPG, PNG, or WebP image.");
+          e.target.value = "";
+          return;
+        }
+        if (file.size > MAX_AVATAR_BYTES) {
+          showToast("Profile photo must be 2 MB or smaller.");
+          e.target.value = "";
+          return;
+        }
+
+        try {
+          showToast("Uploading profile photo...");
+          const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+          const filePath = `${user.id}/avatar.${ext}`;
+
+          const { error: uploadError } = await supabase.storage
+            .from(AVATAR_BUCKET)
+            .upload(filePath, file, { upsert: true, contentType: file.type });
+
+          if (uploadError) throw uploadError;
+
+          const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(filePath);
+          const freshUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+          const { error: dbError } = await supabase
+            .from("profiles")
+            .update({ avatar_url: freshUrl })
+            .eq("id", user.id);
+
+          if (dbError) throw dbError;
+
+          profile.avatar_url = freshUrl;
+          renderAvatar(freshUrl, document.getElementById("fullNameInput").value);
+          showToast("Profile photo updated");
+        } catch (err) {
+          showToast(err.message || "Failed to upload profile photo");
+        } finally {
+          e.target.value = "";
+        }
+      });
+
+      removeAvatarBtn.addEventListener("click", async () => {
+        try {
+          const { error } = await supabase
+            .from("profiles")
+            .update({ avatar_url: null })
+            .eq("id", user.id);
+
+          if (error) throw error;
+          profile.avatar_url = null;
+          renderAvatar(null, document.getElementById("fullNameInput").value);
+          showToast("Profile photo removed");
+        } catch (err) {
+          showToast(err.message);
+        }
+      });
 
       modeBox.innerHTML = `
         <button class="btn ${profile.active_mode === "SHOP" ? "btn-amber" : "btn-outline"}" id="toShopBtn">SHOP Mode</button>
@@ -62,16 +197,20 @@
 
       document.getElementById("profileForm").addEventListener("submit", async (e) => {
         e.preventDefault();
+        const nextName = document.getElementById("fullNameInput").value.trim();
         const { error } = await supabase
           .from("profiles")
           .update({
-            full_name: document.getElementById("fullNameInput").value.trim(),
+            full_name: nextName,
             phone_number: document.getElementById("phoneInput").value.trim()
           })
           .eq("id", user.id);
 
         if (error) showToast(error.message);
-        else showToast("Profile updated");
+        else {
+          renderAvatar(profile.avatar_url, nextName);
+          showToast("Profile updated");
+        }
       });
     } else {
       modeBox.innerHTML = `<a href="./login.html" class="btn btn-amber">Sign In to Manage Account →</a>`;

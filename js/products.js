@@ -1,4 +1,4 @@
-// mswazi1/js/products.js — Vendor stall products, availability toggles & cart addition
+// mswazi1/js/products.js — Vendor stall products, ordering, media, availability toggles & cart addition
 import { supabase } from "./supabase.js";
 import { MSWAZI_CONFIG } from "./config.js";
 import { getCurrentUserContext } from "./app.js";
@@ -14,7 +14,9 @@ const DEMO_PRODUCTS = [
     price_kes: 350,
     unit_label: "bag",
     stock_qty: 24,
-    is_available: true
+    is_available: true,
+    sort_order: 0,
+    media: []
   },
   {
     id: "p-2",
@@ -25,7 +27,9 @@ const DEMO_PRODUCTS = [
     price_kes: 140,
     unit_label: "bundle",
     stock_qty: 40,
-    is_available: true
+    is_available: true,
+    sort_order: 1,
+    media: []
   },
   {
     id: "p-3",
@@ -36,7 +40,9 @@ const DEMO_PRODUCTS = [
     price_kes: 450,
     unit_label: "plate",
     stock_qty: 15,
-    is_available: true
+    is_available: true,
+    sort_order: 0,
+    media: []
   },
   {
     id: "p-4",
@@ -47,7 +53,9 @@ const DEMO_PRODUCTS = [
     price_kes: 620,
     unit_label: "pack",
     stock_qty: 30,
-    is_available: true
+    is_available: true,
+    sort_order: 0,
+    media: []
   },
   {
     id: "p-5",
@@ -58,7 +66,9 @@ const DEMO_PRODUCTS = [
     price_kes: 820,
     unit_label: "bag",
     stock_qty: 85,
-    is_available: true
+    is_available: true,
+    sort_order: 0,
+    media: []
   },
   {
     id: "p-6",
@@ -69,9 +79,20 @@ const DEMO_PRODUCTS = [
     price_kes: 1650,
     unit_label: "piece",
     stock_qty: 12,
-    is_available: true
+    is_available: true,
+    sort_order: 0,
+    media: []
   }
 ];
+
+function sortByDisplayOrder(list) {
+  return [...list].sort((a, b) => {
+    const aOrder = Number.isFinite(Number(a.sort_order)) ? Number(a.sort_order) : 9999;
+    const bOrder = Number.isFinite(Number(b.sort_order)) ? Number(b.sort_order) : 9999;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return String(a.name || "").localeCompare(String(b.name || ""));
+  });
+}
 
 export async function fetchProductsByVendor(vendorId) {
   if (!vendorId) return [];
@@ -81,17 +102,18 @@ export async function fetchProductsByVendor(vendorId) {
       .from("products")
       .select("*")
       .eq("vendor_id", vendorId)
-      .order("name", { ascending: true });
+      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      return data;
+      return sortByDisplayOrder(data);
     }
   } catch {
     // Handled below
   }
 
   return MSWAZI_CONFIG.demoMode
-    ? DEMO_PRODUCTS.filter((p) => p.vendor_id === vendorId)
+    ? sortByDisplayOrder(DEMO_PRODUCTS.filter((p) => p.vendor_id === vendorId))
     : [];
 }
 
