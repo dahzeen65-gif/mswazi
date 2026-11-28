@@ -12,6 +12,51 @@
     .form-group label { display: block; font-size: 0.78rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.25rem; }
     .suborder-controls { display: flex; gap: 0.45rem; flex-wrap: wrap; align-items: center; }
     .pay-code-pill { display: inline-block; background: #fef3c7; color: #92400e; font-size: 0.74rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; margin-left: 0.35rem; }
+
+    /* Media & Product Arrangement Controls */
+    .media-strip { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .media-thumb {
+      position: relative;
+      width: 78px;
+      height: 78px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #cbd5e1;
+      background: #0f172a;
+    }
+    .media-thumb img, .media-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .media-remove {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      background: rgba(15, 23, 42, 0.85);
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      width: 20px;
+      height: 20px;
+      font-size: 0.72rem;
+      line-height: 1;
+      cursor: pointer;
+    }
+    .prod-row-left { display: flex; gap: 0.65rem; align-items: center; }
+    .prod-mini-thumb {
+      width: 52px;
+      height: 52px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+    .prod-mini-thumb img, .prod-mini-thumb video { width: 100%; height: 100%; object-fit: cover; }
+    .prod-controls { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }
+    .btn-xs { padding: 0.3rem 0.55rem; font-size: 0.74rem; }
   </style>
 </head>
 <body>
@@ -30,7 +75,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
       <div>
         <h1 style="font-size:1.45rem; font-weight:800; color:var(--navy-900);" id="stallHeading">Your Stall Dashboard</h1>
-        <p style="font-size:0.84rem; color:var(--muted);" id="stallSub">Manage your products, stock levels, live location, and stall plan</p>
+        <p style="font-size:0.84rem; color:var(--muted);" id="stallSub">Manage your products, media gallery, display arrangement, live location, and stall plan</p>
       </div>
       <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
         <button class="btn btn-outline" id="liveLocationBtn">Share Live Location: Off</button>
@@ -40,6 +85,58 @@
 
     <div class="dash-split">
       <div class="dash-stack">
+        <!-- Stall Showcase Photo / Video -->
+        <section class="card dash-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div>
+              <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900);">Stall Cover Photo / Promo Video</h2>
+              <p style="font-size:0.78rem; color:var(--muted);">Showcase your stall front or a quick clip (Images max 3 MB · Videos max 20 MB)</p>
+            </div>
+            <label class="btn btn-outline btn-xs" style="cursor:pointer;">
+              Upload Cover Media
+              <input id="stallMediaInput" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" hidden />
+            </label>
+          </div>
+          <div id="stallMediaPreview" style="margin-top:0.75rem;"></div>
+        </section>
+
+        <!-- Add / Edit Product Form with Photos & Videos -->
+        <section class="card dash-panel">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900);" id="productFormTitle">Add Product to Your Stall</h2>
+            <button type="button" class="btn btn-outline btn-xs" id="cancelEditBtn" style="display:none;">Cancel Edit</button>
+          </div>
+
+          <form id="addProductForm">
+            <input type="hidden" id="editingProdId" />
+            <div class="form-group">
+              <label for="prodName">Item Name</label>
+              <input class="field" id="prodName" type="text" required placeholder="e.g. Fresh Tomatoes (2kg)" />
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.6rem;">
+              <div class="form-group">
+                <label for="prodPrice">Price (KES)</label>
+                <input class="field" id="prodPrice" type="number" min="1" step="1" required placeholder="180" />
+              </div>
+              <div class="form-group">
+                <label for="prodUnit">Unit Label</label>
+                <input class="field" id="prodUnit" type="text" value="pack" required />
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="prodStock">Stock Quantity</label>
+              <input class="field" id="prodStock" type="number" min="0" value="15" required />
+            </div>
+            <div class="form-group">
+              <label for="prodMediaFiles">Product Photos &amp; Videos (Images max 3 MB · Videos max 20 MB)</label>
+              <input class="field" id="prodMediaFiles" type="file" accept="image/*,video/mp4,video/webm,video/quicktime" multiple />
+              <div id="draftMediaStrip" class="media-strip"></div>
+            </div>
+            <button class="btn btn-amber" id="publishProductBtn" style="width:100%;" type="submit">Publish Item</button>
+          </form>
+        </section>
+
+        <!-- Stall Plan & Launch Window -->
         <section class="card dash-panel">
           <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.35rem;">Stall Plan &amp; Launch Window</h2>
           <p style="font-size:0.8rem; color:var(--muted); margin-bottom:0.75rem;" id="planSummaryText">
@@ -67,37 +164,19 @@
             <button class="btn btn-outline" style="width:100%;" type="submit">Save Plan Selection</button>
           </form>
         </section>
-
-        <section class="card dash-panel">
-          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.75rem;">Add Product to Your Stall</h2>
-          <form id="addProductForm">
-            <div class="form-group">
-              <label for="prodName">Item Name</label>
-              <input class="field" id="prodName" type="text" required placeholder="e.g. Fresh Tomatoes (2kg)" />
-            </div>
-            <div class="form-group">
-              <label for="prodPrice">Price (KES)</label>
-              <input class="field" id="prodPrice" type="number" min="1" step="1" required placeholder="180" />
-            </div>
-            <div class="form-group">
-              <label for="prodUnit">Unit Label</label>
-              <input class="field" id="prodUnit" type="text" value="pack" required />
-            </div>
-            <div class="form-group">
-              <label for="prodStock">Stock Quantity</label>
-              <input class="field" id="prodStock" type="number" min="0" value="15" required />
-            </div>
-            <button class="btn btn-amber" style="width:100%;" type="submit">Publish Item</button>
-          </form>
-        </section>
       </div>
 
       <div class="dash-stack">
+        <!-- Stall Catalogue, Media & Display Arrangement -->
         <section class="card dash-panel">
-          <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Stall Catalogue &amp; Stock</h2>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; margin-bottom:0.5rem;">
+            <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900);">Stall Catalogue &amp; Arrangement</h2>
+            <span style="font-size:0.74rem; color:var(--muted);">Use ↑ ↓ to arrange display order</span>
+          </div>
           <div id="vendorProductsList"></div>
         </section>
 
+        <!-- Incoming Sub-Orders & Direct Payments -->
         <section class="card dash-panel">
           <h2 style="font-size:1.05rem; font-weight:800; color:var(--navy-900); margin-bottom:0.5rem;">Incoming Sub-Orders &amp; Direct Payments</h2>
           <div id="vendorSubOrdersList"></div>
@@ -111,9 +190,12 @@
     import { MSWAZI_CONFIG } from "../js/config.js";
     import { getCurrentUserContext, formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
     import { switchAccountMode } from "../js/auth.js";
-    import { fetchProductsByVendor } from "../js/products.js";
     import { updateVendorSubscriptionPlan } from "../js/vendors.js";
     import { confirmSubOrderPaymentReceived } from "../js/orders.js";
+
+    const MEDIA_BUCKET = "stall-media";
+    const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
+    const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 
     document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("vendorCurrencySelect");
     document.getElementById("vendorCurrencySelect").addEventListener("change", (e) => {
@@ -124,6 +206,8 @@
 
     const { user } = await getCurrentUserContext();
     let myVendor = null;
+    let currentProducts = [];
+    let draftMedia = []; // [{ url, type: 'image' | 'video' }]
     let liveLocationActive = false;
     let watchId = null;
 
@@ -131,6 +215,174 @@
       const { data } = await supabase.from("vendors").select("*").eq("owner_id", user.id).maybeSingle();
       myVendor = data;
     }
+
+    async function uploadMediaToBucket(file, prefix) {
+      if (!user) throw new Error("Sign in first to upload media.");
+      const isVideo = file.type.startsWith("video/");
+      const isImage = file.type.startsWith("image/");
+
+      if (!isVideo && !isImage) {
+        throw new Error(`Unsupported file format (${file.type || "unknown"}).`);
+      }
+      if (isImage && file.size > MAX_IMAGE_BYTES) {
+        throw new Error(`"${file.name}" is larger than 3 MB.`);
+      }
+      if (isVideo && file.size > MAX_VIDEO_BYTES) {
+        throw new Error(`"${file.name}" is larger than 20 MB.`);
+      }
+
+      const ext = (file.name.split(".").pop() || (isVideo ? "mp4" : "jpg")).toLowerCase();
+      const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}.${ext}`;
+      const storagePath = `${user.id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(MEDIA_BUCKET)
+        .upload(storagePath, file, { contentType: file.type, upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(storagePath);
+      return { url: data.publicUrl, type: isVideo ? "video" : "image" };
+    }
+
+    function renderStallMediaPreview() {
+      const box = document.getElementById("stallMediaPreview");
+      if (!myVendor?.stall_media_url) {
+        box.innerHTML = `<span style="font-size:0.78rem; color:var(--muted);">No stall cover photo or video uploaded yet.</span>`;
+        return;
+      }
+      if (myVendor.stall_media_type === "video") {
+        box.innerHTML = `<video src="${myVendor.stall_media_url}" controls playsinline style="width:100%; max-height:220px; border-radius:10px; background:#0f172a;"></video>`;
+      } else {
+        box.innerHTML = `<img src="${myVendor.stall_media_url}" alt="${myVendor.business_name}" style="width:100%; max-height:220px; object-fit:cover; border-radius:10px;" />`;
+      }
+    }
+
+    document.getElementById("stallMediaInput").addEventListener("change", async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (!myVendor) {
+        showToast("Register or sign in to a stall first.");
+        e.target.value = "";
+        return;
+      }
+
+      try {
+        showToast("Uploading stall cover media...");
+        const uploaded = await uploadMediaToBucket(file, "stall-cover");
+        const { error } = await supabase
+          .from("vendors")
+          .update({ stall_media_url: uploaded.url, stall_media_type: uploaded.type })
+          .eq("id", myVendor.id);
+
+        if (error) throw error;
+        myVendor.stall_media_url = uploaded.url;
+        myVendor.stall_media_type = uploaded.type;
+        renderStallMediaPreview();
+        showToast("Stall cover media updated");
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    function renderDraftMediaStrip() {
+      const strip = document.getElementById("draftMediaStrip");
+      strip.innerHTML = draftMedia
+        .map(
+          (m, idx) => `
+          <div class="media-thumb">
+            ${
+              m.type === "video"
+                ? `<video src="${m.url}" muted playsinline></video>`
+                : `<img src="${m.url}" alt="Product preview" />`
+            }
+            <button type="button" class="media-remove" data-remove-media="${idx}" title="Remove">×</button>
+          </div>
+        `
+        )
+        .join("");
+
+      strip.querySelectorAll("[data-remove-media]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          draftMedia.splice(Number(btn.dataset.removeMedia), 1);
+          renderDraftMediaStrip();
+        });
+      });
+    }
+
+    document.getElementById("prodMediaFiles").addEventListener("change", async (e) => {
+      const files = Array.from(e.target.files || []);
+      if (!files.length) return;
+      if (!myVendor) {
+        showToast("Register or sign in to a stall first.");
+        e.target.value = "";
+        return;
+      }
+
+      try {
+        for (const file of files) {
+          showToast(`Uploading ${file.name}...`);
+          const uploaded = await uploadMediaToBucket(file, "prod");
+          draftMedia.push(uploaded);
+        }
+        renderDraftMediaStrip();
+        showToast("Media ready — click Publish / Update Item to save");
+      } catch (err) {
+        showToast(err.message);
+      } finally {
+        e.target.value = "";
+      }
+    });
+
+    function resetProductForm() {
+      document.getElementById("editingProdId").value = "";
+      document.getElementById("productFormTitle").textContent = "Add Product to Your Stall";
+      document.getElementById("publishProductBtn").textContent = "Publish Item";
+      document.getElementById("cancelEditBtn").style.display = "none";
+      document.getElementById("addProductForm").reset();
+      document.getElementById("prodUnit").value = "pack";
+      document.getElementById("prodStock").value = 15;
+      draftMedia = [];
+      renderDraftMediaStrip();
+    }
+
+    document.getElementById("cancelEditBtn").addEventListener("click", resetProductForm);
+
+    window.editProduct = (prodId) => {
+      const item = currentProducts.find((p) => String(p.id) === String(prodId));
+      if (!item) return;
+
+      document.getElementById("editingProdId").value = item.id;
+      document.getElementById("productFormTitle").textContent = `Edit Item: ${item.name}`;
+      document.getElementById("publishProductBtn").textContent = "Update Item";
+      document.getElementById("cancelEditBtn").style.display = "inline-flex";
+
+      document.getElementById("prodName").value = item.name || "";
+      document.getElementById("prodPrice").value = item.price_kes ?? 0;
+      document.getElementById("prodUnit").value = item.unit_label || "pack";
+      document.getElementById("prodStock").value = item.stock_qty ?? 0;
+      draftMedia = Array.isArray(item.media) ? [...item.media] : [];
+      renderDraftMediaStrip();
+      document.getElementById("productFormTitle").scrollIntoView({ behavior: "smooth" });
+    };
+
+    window.moveProductOrder = async (index, delta) => {
+      const targetIndex = index + delta;
+      if (targetIndex < 0 || targetIndex >= currentProducts.length) return;
+
+      const currentItem = currentProducts[index];
+      const swapItem = currentProducts[targetIndex];
+
+      await Promise.all([
+        supabase.from("products").update({ sort_order: targetIndex }).eq("id", currentItem.id),
+        supabase.from("products").update({ sort_order: index }).eq("id", swapItem.id)
+      ]);
+
+      showToast("Stall arrangement updated");
+      await refreshVendorData();
+    };
 
     function updatePlanSummary() {
       const { launchMonths, standardWeeklyKes, standardMonthlyKes, spotlightWeeklyKes, spotlightMonthlyKes } = MSWAZI_CONFIG.stallPlans;
@@ -152,6 +404,7 @@
       badge.textContent = myVendor.approval_status;
       badge.classList.toggle("badge-active", myVendor.approval_status === "APPROVED");
     }
+    renderStallMediaPreview();
 
     document.getElementById("planForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -255,21 +508,35 @@
         return;
       }
 
-      const { error } = await supabase.from("products").insert({
+      const editingId = document.getElementById("editingProdId").value;
+      const payload = {
         vendor_id: myVendor.id,
         name: document.getElementById("prodName").value.trim(),
         category: myVendor.category,
         price_kes: Number(document.getElementById("prodPrice").value),
         unit_label: document.getElementById("prodUnit").value.trim(),
         stock_qty: Number(document.getElementById("prodStock").value),
-        is_available: true
-      });
+        media: draftMedia
+      };
 
-      if (error) showToast(error.message);
-      else {
-        e.target.reset();
-        showToast("Product added to stall");
-        await refreshVendorData();
+      if (editingId) {
+        const { error } = await supabase.from("products").update(payload).eq("id", editingId);
+        if (error) showToast(error.message);
+        else {
+          resetProductForm();
+          showToast("Product updated");
+          await refreshVendorData();
+        }
+      } else {
+        payload.is_available = true;
+        payload.sort_order = currentProducts.length;
+        const { error } = await supabase.from("products").insert(payload);
+        if (error) showToast(error.message);
+        else {
+          resetProductForm();
+          showToast("Product added to stall");
+          await refreshVendorData();
+        }
       }
     });
 
@@ -283,20 +550,47 @@
         return;
       }
 
-      const prods = await fetchProductsByVendor(myVendor.id);
-      prodEl.innerHTML = prods.length
-        ? prods
-            .map(
-              (p) => `
-              <div class="dash-row">
-                <div>
-                  <strong style="font-size:0.88rem; color:var(--navy-900);">${p.name}</strong>
-                  <div style="font-size:0.76rem; color:var(--muted);">${formatKES(p.price_kes)} / ${p.unit_label} · Stock: ${p.stock_qty}</div>
+      const { data: prods } = await supabase
+        .from("products")
+        .select("*")
+        .eq("vendor_id", myVendor.id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: false });
+
+      currentProducts = Array.isArray(prods) ? prods : [];
+
+      prodEl.innerHTML = currentProducts.length
+        ? currentProducts
+            .map((p, idx) => {
+              const mediaList = Array.isArray(p.media) ? p.media : [];
+              const firstMedia = mediaList[0];
+              const thumbHtml = firstMedia
+                ? firstMedia.type === "video"
+                  ? `<video src="${firstMedia.url}" muted playsinline></video>`
+                  : `<img src="${firstMedia.url}" alt="${p.name}" />`
+                : `No media`;
+              const photoCount = mediaList.filter((m) => m.type === "image").length;
+              const videoCount = mediaList.filter((m) => m.type === "video").length;
+
+              return `
+                <div class="dash-row">
+                  <div class="prod-row-left">
+                    <div class="prod-mini-thumb">${thumbHtml}</div>
+                    <div>
+                      <strong style="font-size:0.88rem; color:var(--navy-900);">#${idx + 1} · ${p.name}</strong>
+                      <div style="font-size:0.76rem; color:var(--muted);">${formatKES(p.price_kes)} / ${p.unit_label} · Stock: ${p.stock_qty}</div>
+                      <div style="font-size:0.72rem; color:var(--navy-800);">${photoCount} photo(s) · ${videoCount} video(s)</div>
+                    </div>
+                  </div>
+                  <div class="prod-controls">
+                    <button type="button" class="btn btn-outline btn-xs" onclick="moveProductOrder(${idx}, -1)" ${idx === 0 ? "disabled" : ""} title="Move Up">↑</button>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="moveProductOrder(${idx}, 1)" ${idx === currentProducts.length - 1 ? "disabled" : ""} title="Move Down">↓</button>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="editProduct('${p.id}')">Edit</button>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="toggleStock('${p.id}', ${Boolean(p.is_available)})">${p.is_available ? "Available" : "Hidden"}</button>
+                  </div>
                 </div>
-                <button class="btn btn-outline" onclick="toggleStock('${p.id}', ${Boolean(p.is_available)})">${p.is_available ? "Available" : "Hidden"}</button>
-              </div>
-            `
-            )
+              `;
+            })
             .join("")
         : `<p style="font-size:0.83rem; color:var(--muted);">No items published yet.</p>`;
 

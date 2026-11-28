@@ -1,4 +1,4 @@
-// mswazi1/js/vendors.js — Approved stall queries, spotlight ordering, live location & stall subscriptions
+// mswazi1/js/vendors.js — Approved stall queries, spotlight ordering, live location, media & stall subscriptions
 import { supabase } from "./supabase.js";
 import { MSWAZI_CONFIG } from "./config.js";
 
@@ -16,6 +16,8 @@ const DEMO_VENDORS = [
     plan_tier: "SPOTLIGHT",
     billing_cycle: "MONTHLY",
     subscription_status: "LAUNCH_FREE",
+    stall_media_url: null,
+    stall_media_type: null,
     lat: -4.0065,
     lng: 39.6050,
     live_lat: -4.0065,
@@ -34,6 +36,8 @@ const DEMO_VENDORS = [
     plan_tier: "STANDARD",
     billing_cycle: "WEEKLY",
     subscription_status: "LAUNCH_FREE",
+    stall_media_url: null,
+    stall_media_type: null,
     lat: -4.0052,
     lng: 39.6075,
     live_lat: -4.0052,
@@ -52,6 +56,8 @@ const DEMO_VENDORS = [
     plan_tier: "STANDARD",
     billing_cycle: "MONTHLY",
     subscription_status: "LAUNCH_FREE",
+    stall_media_url: null,
+    stall_media_type: null,
     lat: -4.0080,
     lng: 39.6032,
     live_lat: -4.0080,
@@ -70,6 +76,8 @@ const DEMO_VENDORS = [
     plan_tier: "STANDARD",
     billing_cycle: "MONTHLY",
     subscription_status: "LAUNCH_FREE",
+    stall_media_url: null,
+    stall_media_type: null,
     lat: -4.0185,
     lng: 39.6010,
     live_lat: -4.0185,
@@ -88,6 +96,8 @@ const DEMO_VENDORS = [
     plan_tier: "STANDARD",
     billing_cycle: "WEEKLY",
     subscription_status: "LAUNCH_FREE",
+    stall_media_url: null,
+    stall_media_type: null,
     lat: -4.0220,
     lng: 39.6220,
     live_lat: -4.0220,
@@ -214,6 +224,39 @@ export async function setVendorOpenStatus(vendorId, isOpen) {
 
   if (error) {
     throw new Error(error.message || "Failed to update stall open status.");
+  }
+}
+
+export async function updateVendorStallMedia(vendorId, { mediaUrl, mediaType }) {
+  if (!vendorId) throw new Error("Vendor ID is required.");
+
+  const { error } = await supabase
+    .from("vendors")
+    .update({
+      stall_media_url: mediaUrl || null,
+      stall_media_type: mediaType || null
+    })
+    .eq("id", vendorId);
+
+  if (error) {
+    throw new Error(error.message || "Failed to update stall cover media.");
+  }
+}
+
+export async function reorderVendorProducts(orderedProductIds) {
+  if (!Array.isArray(orderedProductIds) || orderedProductIds.length === 0) return;
+
+  const updates = orderedProductIds.map((productId, index) =>
+    supabase
+      .from("products")
+      .update({ sort_order: index })
+      .eq("id", productId)
+  );
+
+  const results = await Promise.all(updates);
+  const failed = results.find((res) => res.error);
+  if (failed?.error) {
+    throw new Error(failed.error.message || "Failed to save product order.");
   }
 }
 
