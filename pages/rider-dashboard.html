@@ -98,6 +98,7 @@
     import { showToast } from "../js/app.js";
 
     let ridersCache = [];
+    let deliveriesCache = [];
     let activeBroadcastRiderId = null;
     let watchId = null;
 
@@ -167,15 +168,32 @@
       );
     });
 
-    window.selectBroadcastRider = (riderId) => {
+    window.selectBroadcastRider = async (riderId) => {
       activeBroadcastRiderId = riderId;
       showToast("Selected rider for live GPS broadcast");
+      renderRiders();
     };
 
-    window.assignOrUpdateLeg = async (deliveryId, riderId, status) => {
+    window.assignRiderToLeg = async (deliveryId, riderId) => {
+      const current = deliveriesCache.find((item) => item.id === deliveryId);
+      const nextStatus =
+        riderId && (!current?.status || current.status === "AWAITING_ASSIGNMENT")
+          ? "ASSIGNED"
+          : (current?.status || "AWAITING_ASSIGNMENT");
+
       if (riderId) activeBroadcastRiderId = riderId;
-      await updateDeliveryLeg(deliveryId, { trustedRiderId: riderId, status });
-      showToast("Delivery leg updated");
+      await updateDeliveryLeg(deliveryId, { trustedRiderId: riderId || null, status: nextStatus });
+      showToast(riderId ? "Rider assigned to delivery leg" : "Rider unassigned");
+      await refresh();
+    };
+
+    window.updateLegStatus = async (deliveryId, status) => {
+      const current = deliveriesCache.find((item) => item.id === deliveryId);
+      await updateDeliveryLeg(deliveryId, {
+        trustedRiderId: current?.trusted_rider_id || null,
+        status
+      });
+      showToast(`Delivery marked as ${status}`);
       await refresh();
     };
 
@@ -196,12 +214,7 @@
       }
     });
 
-    async function refresh() {
-      ridersCache = await fetchTrustedRiders();
-      if (!activeBroadcastRiderId && ridersCache.length > 0) {
-        activeBroadcastRiderId = ridersCache[0].id;
-      }
-
+    function renderRiders() {
       const ridersEl = document.getElementById("ridersList");
       ridersEl.innerHTML = ridersCache.length
         ? ridersCache
@@ -220,11 +233,12 @@
             )
             .join("")
         : `<p style="font-size:0.8rem; color:var(--muted);">No trusted riders added yet.</p>`;
+    }
 
-      const delivs = await fetchDeliveriesWithSubOrders();
+    function renderDeliveries() {
       const delivEl = document.getElementById("deliveriesList");
-      delivEl.innerHTML = delivs.length
-        ? delivs
+      delivEl.innerHTML = deliveriesCache.length
+        ? deliveriesCache
             .map(
               (d) => `
               <div class="row-item">
@@ -236,11 +250,11 @@
                   </div>
                 </div>
                 <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
-                  <select class="field" style="width:auto;" onchange="assignOrUpdateLeg('${d.id}', this.value, '${d.status}')">
+                  <select class="field" style="width:auto;" onchange="assignRiderToLeg('${d.id}', this.value)">
                     <option value="">Assign Rider</option>
                     ${ridersCache.map((r) => `<option value="${r.id}" ${d.trusted_rider_id === r.id ? "selected" : ""}>${r.rider_label}</option>`).join("")}
                   </select>
-                  <select class="field" style="width:auto;" onchange="assignOrUpdateLeg('${d.id}', '${d.trusted_rider_id || ""}', this.value)">
+                  <select class="field" style="width:auto;" onchange="updateLegStatus('${d.id}', this.value)">
                     <option value="AWAITING_ASSIGNMENT" ${d.status === "AWAITING_ASSIGNMENT" ? "selected" : ""}>AWAITING_ASSIGNMENT</option>
                     <option value="ASSIGNED" ${d.status === "ASSIGNED" ? "selected" : ""}>ASSIGNED</option>
                     <option value="PICKED_UP" ${d.status === "PICKED_UP" ? "selected" : ""}>PICKED_UP</option>
@@ -253,6 +267,16 @@
             )
             .join("")
         : `<p style="font-size:0.83rem; color:var(--muted);">No active delivery legs yet.</p>`;
+    }
+
+    async function refresh() {
+      ridersCache = await fetchTrustedRiders();
+      if (!activeBroadcastRiderId && ridersCache.length > 0) {
+        activeBroadcastRiderId = ridersCache[0].id;
+      }
+      deliveriesCache = await fetchDeliveriesWithSubOrders();
+      renderRiders();
+      renderDeliveries();
     }
 
     refresh();

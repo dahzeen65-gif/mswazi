@@ -58,7 +58,10 @@ export async function fetchDeliveriesWithSubOrders() {
 }
 
 export async function updateDeliveryLeg(deliveryId, { trustedRiderId, status }) {
-  const payload = { status };
+  const payload = {
+    status,
+    updated_at: new Date().toISOString()
+  };
   if (trustedRiderId !== undefined) {
     payload.trusted_rider_id = trustedRiderId || null;
   }
@@ -71,4 +74,23 @@ export async function updateDeliveryLeg(deliveryId, { trustedRiderId, status }) 
   if (error) {
     throw new Error(error.message || "Failed updating delivery status.");
   }
+}
+
+export function subscribeToDeliveries(onChange) {
+  const channel = supabase
+    .channel("mswazi-deliveries-realtime")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "deliveries" },
+      (payload) => {
+        if (typeof onChange === "function") {
+          onChange(payload);
+        }
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }

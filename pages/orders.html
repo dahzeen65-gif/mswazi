@@ -17,6 +17,7 @@
     .nav-links a.active { background: var(--amber-500); color: #fff; }
     .order-card { padding: 1.15rem; margin-bottom: 1rem; }
     .ref-row { display: flex; gap: 0.45rem; margin-top: 0.55rem; flex-wrap: wrap; align-items: center; }
+    .dispatch-meta { font-size: 0.76rem; color: var(--navy-900); background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; margin-top: 0.45rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -39,7 +40,7 @@
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
       <div>
         <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900);">My Orders &amp; Direct Stall Payments</h1>
-        <p style="font-size:0.85rem; color:var(--muted);">Pay each vendor directly and log your M-Pesa confirmation code per sub-order.</p>
+        <p style="font-size:0.85rem; color:var(--muted);">Pay each vendor directly, log your M-Pesa confirmation code, and track rider dispatch.</p>
       </div>
       <span id="currencyMount"></span>
     </div>
@@ -56,6 +57,14 @@
       MPESA_TILL: "M-Pesa Buy Goods Till",
       MPESA_PAYBILL: "M-Pesa Paybill",
       COD_ONLY: "Cash on Delivery"
+    };
+
+    const DELIVERY_LABELS = {
+      AWAITING_ASSIGNMENT: "Waiting for Rider",
+      ASSIGNED: "Rider Assigned",
+      PICKED_UP: "Picked Up from Stall",
+      IN_TRANSIT: "Out for Delivery",
+      DELIVERED: "Delivered"
     };
 
     document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("ordersCurrencySelect");
@@ -86,6 +95,25 @@
         showToast(err.message);
       }
     };
+
+    function getDeliverySummary(vo) {
+      const legs = Array.isArray(vo.deliveryies) 
+        ? vo.deliveries
+        : vo.deliveries
+          ? [vo.deliveries]
+          : [];
+      const leg = legs[0];
+      if (!leg) return null;
+
+      const riderLabel =
+        leg.trusted_riders?.rider_label ||
+        leg.rider_label ||
+        (leg.trusted_rider_id ? "Assigned Rider" : "Unassigned");
+      const statusCode = leg.status || "AWAITING_ASSIGNMENT";
+      const statusText = DELIVERY_LABELS[statusCode] || statusCode;
+
+      return { riderLabel, statusCode, statusText };
+    }
 
     async function renderOrders() {
       const listEl = document.getElementById("ordersList");
@@ -121,6 +149,8 @@
                     const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
                     const refLabel = v.payment_account_ref ? `${channel}: ${v.payment_account_ref}` : channel;
                     const isConfirmed = vo.payment_status === "PAID_CONFIRMED";
+                    const deliv = getDeliverySummary(vo);
+
                     return `
                       <div class="suborder-card">
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
@@ -131,6 +161,17 @@
                           </div>
                           <span class="badge ${isConfirmed ? "badge-active" : ""}">${vo.payment_status || "UNPAID"}</span>
                         </div>
+
+                        ${
+                          deliv
+                            ? `
+                            <div class="dispatch-meta">
+                              <span>Rider: <strong>${deliv.riderLabel}</strong></span>
+                              <span class="badge ${deliv.statusCode === "DELIVERED" ? "badge-active" : ""}">${deliv.statusText}</span>
+                            </div>
+                          `
+                            : ""
+                        }
 
                         <div class="ref-row">
                           <input

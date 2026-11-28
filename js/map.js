@@ -4,10 +4,19 @@ import { supabase } from "./supabase.js";
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
 
-function loadLeaflet() {
-  return new Promise((resolve, reject) => {
-    if (window.L) return resolve(window.L);
+let leafletPromise = null;
 
+function toFiniteNumber(val) {
+  if (val === null || val === undefined || val === "") return null;
+  const num = Number(val);
+  return Number.isFinite(num) ? num : null;
+}
+
+function loadLeaflet() {
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletPromise) return leafletPromise;
+
+  leafletPromise = new Promise((resolve, reject) => {
     if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
       const link = document.createElement("link");
       link.rel = "stylesheet";
@@ -15,29 +24,35 @@ function loadLeaflet() {
       document.head.appendChild(link);
     }
 
+    const existingScript = document.querySelector(`script[src="${LEAFLET_JS}"]`);
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(window.L), { once: true });
+      existingScript.addEventListener("error", () => reject(new Error("Failed to load Leaflet map library.")), { once: true });
+      return;
+    }
+
     const script = document.createElement("script");
     script.src = LEAFLET_JS;
     script.async = true;
     script.onload = () => resolve(window.L);
-    script.onerror = () => reject(new Error("Failed to load Leaflet map library."));
+    script.onerror = () => {
+      leafletPromise = null;
+      reject(new Error("Failed to load Leaflet map library."));
+    };
     document.head.appendChild(script);
   });
+
+  return leafletPromise;
 }
 
 export function getStallCoordinates(stall, idx = 0) {
-  const lat =
-    typeof stall.live_lat === "number"
-      ? stall.live_lat
-      : typeof stall.lat === "number"
-      ? stall.lat
-      : -4.0065 + ((idx % 3) - 1) * 0.004;
+  const liveLat = toFiniteNumber(stall?.live_lat);
+  const baseLat = toFiniteNumber(stall?.lat);
+  const lat = liveLat ?? baseLat ?? -4.0065 + ((idx % 3) - 1) * 0.004;
 
-  const lng =
-    typeof stall.live_lng === "number"
-      ? stall.live_lng
-      : typeof stall.lng === "number"
-      ? stall.lng
-      : 39.6050 + (Math.floor(idx / 3) - 0.5) * 0.005;
+  const liveLng = toFiniteNumber(stall?.live_lng);
+  const baseLng = toFiniteNumber(stall?.lng);
+  const lng = liveLng ?? baseLng ?? 39.6050 + (Math.floor(idx / 3) - 0.5) * 0.005;
 
   return [lat, lng];
 }
@@ -63,9 +78,12 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
   function renderAreas(areas = [], selectedSlug = "") {
     areaLayer.clearLayers();
     areas.forEach((a) => {
-      if (typeof a.lat !== "number" || typeof a.lng !== "number") return;
+      const lat = toFiniteNumber(a?.lat);
+      const lng = toFiniteNumber(a?.lng);
+      if (lat === null || lng === null) return;
+
       const isSelected = a.slug === selectedSlug;
-      const circle = L.circle([a.lat, a.lng], {
+      const circle = L.circle([lat, lng], {
         radius: (Number(a.radius_km) || 3) * 1000,
         color: a.is_active ? (isSelected ? "#f59e0b" : "#18235c") : "#94a3b8",
         fillColor: a.is_active ? (isSelected ? "#f59e0b" : "#22317d") : "#cbd5e1",
@@ -100,15 +118,18 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
         <div style="font-family:sans-serif; min-width:180px;">
           <strong>${s.business_name}</strong><br/>
           <span style="font-size:12px; color:#5a6380;">${s.category} · ${s.area_slug}</span><br/>
-          <span style="font-size:11px; color:#166534; font-weight:700;">${isOpen ? "● Live Location Active" : "○ Currently Closed"}</span><br/>
+          <span style="font-size:11px; color:${isOpen ? "#166534" : "#64748b"}; font-weight:700;">${isOpen ? "● Live Location Active" : "○ Currently Closed"}</span><br/>
           <button data-stall-id="${s.id}" style="margin-top:6px; padding:4px 10px; border:none; border-radius:999px; background:#f59e0b; color:#fff; font-weight:700; cursor:pointer;">
             Enter Stall
           </button>
         </div>
       `);
 
-      marker.on("popupopen", () => {
-        const btn = document.querySelector(`button[data-stall-id="${s.id}"]`);
+      marker.on("popupopen", (e) => {
+        const popupEl = e.popup?.getElement();
+        const btn = popupEl
+          ? popupEl.querySelector(`button[data-stall-id="${s.id}"]`)
+          : document.querySelector(`button[data-stall-id="${s.id}"]`);
         if (btn && typeof onSelectStall === "function") {
           btn.onclick = () => onSelectStall(s);
         }
@@ -128,9 +149,13 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
   }
 
   function upsertRiderPing(ping) {
-    if (!ping || typeof ping.lat !== "number" || typeof ping.lng !== "number") return;
+    const lat = toFiniteNumber(ping?.lat);
+    const lng = toFiniteNumber(ping?.lng);
+    if (lat === null || lng === null) return;
+
     const key = ping.trusted_rider_id || ping.id;
-    const pos = [ping.lat, ping.lng];
+    const pos = [lat, lng];
+    const normalizedPing = { ...ping, lat, lng };
 
     if (riderMarkers.has(key)) {
       riderMarkers.get(key).setLatLng(pos);
@@ -145,11 +170,15 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
       m.addTo(riderLayer);
       riderMarkers.set(key, m);
     }
+
+    return normalizedPing;
   }
 
   async function loadInitialRiderPings() {
     const { data } = await supabase.from("rider_locations").select("*");
-    if (Array.isArray(data)) data.forEach(upsertRiderPing);
+    if (Array.isArray(data)) {
+      data.forEach((row) => upsertRiderPing(row));
+    }
   }
 
   function subscribeRealtime({ onStallChange, onRiderPing } = {}) {
@@ -168,8 +197,8 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
         (payload) => {
           const row = payload.new;
           if (row) {
-            upsertRiderPing(row);
-            if (typeof onRiderPing === "function") onRiderPing(row);
+            const normalized = upsertRiderPing(row) || row;
+            if (typeof onRiderPing === "function") onRiderPing(normalized);
           }
         }
       )
@@ -181,8 +210,10 @@ export async function createMswaziMap(containerId, { center = [-4.0065, 39.6050]
   }
 
   function focusArea(area) {
-    if (area && typeof area.lat === "number" && typeof area.lng === "number") {
-      map.setView([area.lat, area.lng], 14, { animate: true });
+    const lat = toFiniteNumber(area?.lat);
+    const lng = toFiniteNumber(area?.lng);
+    if (lat !== null && lng !== null) {
+      map.setView([lat, lng], 14, { animate: true });
     }
   }
 

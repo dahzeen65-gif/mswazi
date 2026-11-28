@@ -26,6 +26,17 @@ export async function fetchCustomerOrders() {
           payment_account_ref,
           payment_account_name,
           payment_instructions
+        ),
+        deliveries (
+          id,
+          trusted_rider_id,
+          status,
+          updated_at,
+          trusted_riders (
+            rider_label,
+            vehicle_type,
+            route_scope
+          )
         )
       )
     `)
@@ -92,4 +103,28 @@ export async function toggleOrderRunningLate(orderId, runningLate, holdNote = ""
   if (error) {
     throw new Error(error.message || "Could not update order delay status.");
   }
+}
+
+export function subscribeToOrderUpdates(onChange) {
+  const channel = supabase
+    .channel("mswazi-orders-live")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "vendor_orders" },
+      (payload) => {
+        if (typeof onChange === "function") onChange(payload);
+      }
+    )
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "deliveries" },
+      (payload) => {
+        if (typeof onChange === "function") onChange(payload);
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
 }
