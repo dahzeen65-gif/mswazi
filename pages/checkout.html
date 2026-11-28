@@ -13,7 +13,11 @@
     @media (min-width: 780px) { .checkout-layout { grid-template-columns: 1.25fr 1fr; } }
     .form-group { margin-bottom: 0.85rem; }
     .form-group label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--navy-900); margin-bottom: 0.3rem; }
-    .suborder-pay-box { background: #f8fafd; border: 1px solid var(--border); border-radius: 12px; padding: 0.7rem; margin-bottom: 0.65rem; }
+    .suborder-pay-box { background: #f8fafd; border: 1px solid var(--border); border-radius: 12px; padding: 0.75rem; margin-bottom: 0.65rem; }
+    .checkout-mini-list { margin-top: 0.45rem; padding-top: 0.45rem; border-top: 1px dashed #cbd5e1; display: flex; flex-direction: column; gap: 0.35rem; }
+    .checkout-mini-item { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.77rem; color: var(--navy-900); }
+    .checkout-mini-left { display: flex; align-items: center; gap: 0.45rem; min-width: 0; }
+    .checkout-mini-thumb { width: 32px; height: 32px; border-radius: 6px; object-fit: cover; background: #e2e8f0; flex-shrink: 0; }
   </style>
 </head>
 <body>
@@ -44,7 +48,7 @@
           </select>
         </div>
         <div class="form-group" id="mpesaPhoneGroup">
-          <label for="phoneInput">Your Phone Number (For Order &amp; Delivery Coordination)</label>
+          <label for="phoneInput">Your Phone Number (For Rider &amp; Stall Delivery Coordination)</label>
           <input class="field" id="phoneInput" type="tel" required placeholder="07XX XXX XXX" />
         </div>
         <button class="btn btn-amber" style="width:100%;" type="submit" id="placeOrderBtn">Place Combined Order →</button>
@@ -90,17 +94,15 @@
     if (activeAreas.some((a) => a.slug === saved)) areaSelect.value = saved;
 
     const paymentMethodSelect = document.getElementById("paymentMethod");
-    const phoneGroup = document.getElementById("mpesaPhoneGroup");
     const phoneInput = document.getElementById("phoneInput");
-
-    paymentMethodSelect.addEventListener("change", () => {
-      const isMpesa = paymentMethodSelect.value === "MPESA";
-      phoneGroup.style.display = isMpesa ? "block" : "none";
-      phoneInput.required = isMpesa;
-    });
 
     const items = await loadCartItems();
     const { groups, grandTotalKes } = groupCartByVendor(items);
+
+    const placeOrderBtn = document.getElementById("placeOrderBtn");
+    if (!items.length) {
+      placeOrderBtn.disabled = true;
+    }
 
     const enrichedGroups = await Promise.all(
       groups.map(async (g) => {
@@ -108,6 +110,10 @@
         return { ...g, vendor };
       })
     );
+
+    function isImageUrl(url = "") {
+      return Boolean(url) && !/\.(mp4|webm|mov)(\?|$)/i.test(String(url));
+    }
 
     function renderSummary() {
       document.getElementById("breakdownList").innerHTML = enrichedGroups.length
@@ -117,7 +123,28 @@
               const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
               const ref = v.payment_account_ref || "Set in stall profile";
               const acctName = v.payment_account_name ? ` (${v.payment_account_name})` : "";
-              const note = v.payment_instructions ? `<div style="font-size:0.74rem; color:var(--amber-600); margin-top:0.2rem;">${v.payment_instructions}</div>` : "";
+              const note = v.payment_instructions
+                ? `<div style="font-size:0.74rem; color:var(--amber-600); margin-top:0.2rem;">${v.payment_instructions}</div>`
+                : "";
+
+              const lineItemsHtml = (g.items || [])
+                .map((item) => {
+                  const thumb = isImageUrl(item.media_url)
+                    ? `<img class="checkout-mini-thumb" src="${item.media_url}" alt="${item.product_name}" />`
+                    : "";
+                  const lineTotal = Number(item.price_kes || 0) * Number(item.quantity || 1);
+                  return `
+                    <div class="checkout-mini-item">
+                      <div class="checkout-mini-left">
+                        ${thumb}
+                        <span>${item.quantity} × ${item.product_name}</span>
+                      </div>
+                      <span>${formatKES(lineTotal)}</span>
+                    </div>
+                  `;
+                })
+                .join("");
+
               return `
                 <div class="suborder-pay-box">
                   <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem;">
@@ -128,6 +155,7 @@
                     Pay directly via <strong>${channel}</strong>: <strong>${ref}</strong>${acctName}
                   </div>
                   ${note}
+                  ${lineItemsHtml ? `<div class="checkout-mini-list">${lineItemsHtml}</div>` : ""}
                 </div>
               `;
             })
@@ -141,10 +169,11 @@
 
     document.getElementById("checkoutForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const btn = document.getElementById("placeOrderBtn");
+      if (!items.length) return;
+
       const fb = document.getElementById("checkoutFeedback");
-      btn.disabled = true;
-      btn.textContent = "Submitting order...";
+      placeOrderBtn.disabled = true;
+      placeOrderBtn.textContent = "Submitting order...";
 
       try {
         const res = await placeCombinedOrder({
@@ -161,8 +190,8 @@
         }, 1100);
       } catch (err) {
         fb.textContent = err.message;
-        btn.disabled = false;
-        btn.textContent = "Place Combined Order →";
+        placeOrderBtn.disabled = false;
+        placeOrderBtn.textContent = "Place Combined Order →";
       }
     });
   </script>

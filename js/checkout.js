@@ -72,10 +72,15 @@ export async function placeCombinedOrder({ items, areaSlug, deliveryAddress, pay
       throw new Error(itemsError.message || "Failed saving order items.");
     }
 
-    await supabase.from("deliveries").insert({
+    const { error: deliveryError } = await supabase.from("deliveries").insert({
       vendor_order_id: subOrder.id,
-      status: "AWAITING_ASSIGNMENT"
+      status: "AWAITING_ASSIGNMENT",
+      updated_at: new Date().toISOString()
     });
+
+    if (deliveryError) {
+      throw new Error(deliveryError.message || `Failed creating delivery leg for ${grp.vendor_name}.`);
+    }
   }
 
   // 3. Clear user's cart
