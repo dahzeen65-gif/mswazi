@@ -15,6 +15,29 @@
     .nav-links a.active { background: var(--amber-500); color: #fff; }
     .qty-controls { display: flex; align-items: center; gap: 0.4rem; }
     .qty-btn { width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--border); background: #fff; font-weight: 800; cursor: pointer; }
+
+    /* Cart Item Thumbnail */
+    .cart-item-info { display: flex; align-items: center; gap: 0.7rem; }
+    .cart-item-thumb {
+      width: 54px;
+      height: 54px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #f1f5f9;
+      border: 1px solid #e2e8f0;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+    .cart-item-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -54,6 +77,7 @@
   <script type="module">
     import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
     import { loadCartItems, groupCartByVendor, updateCartItemQuantity, removeCartItem } from "../js/cart.js";
+    import { fetchProductById } from "../js/products.js";
 
     document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("cartCurrencySelect");
     document.getElementById("cartCurrencySelect").addEventListener("change", (e) => {
@@ -73,6 +97,35 @@
       await renderCart();
     };
 
+    function extractProductImageUrl(product) {
+      if (!product) return "";
+      if (product.image_url) return product.image_url;
+      const mediaList = Array.isArray(product.media) ? product.media : [];
+      const firstImage = mediaList.find((m) => m.type === "image")?.url;
+      return firstImage || mediaList[0]?.url || "";
+    }
+
+    async function resolveImageMap(items) {
+      const map = new Map();
+      const missingIds = [...new Set(items.filter((i) => !i.media_url && i.product_id).map((i) => i.product_id))];
+
+      if (missingIds.length) {
+        const fetched = await Promise.all(missingIds.map((id) => fetchProductById(id).catch(() => null)));
+        fetched.forEach((prod, idx) => {
+          const url = extractProductImageUrl(prod);
+          if (url) map.set(missingIds[idx], url);
+        });
+      }
+
+      items.forEach((item) => {
+        if (item.media_url) {
+          map.set(item.product_id, item.media_url);
+        }
+      });
+
+      return map;
+    }
+
     async function renderCart() {
       const container = document.getElementById("cartGroupsContainer");
       const items = await loadCartItems();
@@ -88,6 +141,8 @@
         return;
       }
 
+      const imageMap = await resolveImageMap(items);
+
       container.innerHTML = groups
         .map(
           (g) => `
@@ -97,22 +152,30 @@
               <strong style="font-size:0.95rem; color:var(--amber-600);">Subtotal: ${formatKES(g.subtotal_kes)}</strong>
             </div>
             ${g.items
-              .map(
-                (item) => `
-                <div class="cart-line">
-                  <div>
-                    <strong style="font-size:0.9rem; color:var(--navy-900);">${item.product_name}</strong>
-                    <div style="font-size:0.78rem; color:var(--muted);">${formatKES(item.price_kes)} / ${item.unit_label || "unit"}</div>
+              .map((item) => {
+                const imgUrl = imageMap.get(item.product_id) || "";
+                const thumbHtml = imgUrl
+                  ? `<img src="${imgUrl}" alt="${item.product_name}" loading="lazy" />`
+                  : `No img`;
+
+                return `
+                  <div class="cart-line">
+                    <div class="cart-item-info">
+                      <div class="cart-item-thumb">${thumbHtml}</div>
+                      <div>
+                        <strong style="font-size:0.9rem; color:var(--navy-900);">${item.product_name}</strong>
+                        <div style="font-size:0.78rem; color:var(--muted);">${formatKES(item.price_kes)} / ${item.unit_label || "unit"}</div>
+                      </div>
+                    </div>
+                    <div class="qty-controls">
+                      <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) - 1})">-</button>
+                      <span style="min-width:24px; text-align:center; font-weight:700;">${item.quantity}</span>
+                      <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) + 1})">+</button>
+                      <button class="btn btn-outline" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick="deleteLine('${item.product_id}')">Remove</button>
+                    </div>
                   </div>
-                  <div class="qty-controls">
-                    <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) - 1})">-</button>
-                    <span style="min-width:24px; text-align:center; font-weight:700;">${item.quantity}</span>
-                    <button class="qty-btn" onclick="changeQty('${item.product_id}', ${Number(item.quantity) + 1})">+</button>
-                    <button class="btn btn-outline" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick="deleteLine('${item.product_id}')">Remove</button>
-                  </div>
-                </div>
-              `
-              )
+                `;
+              })
               .join("")}
           </section>
         `

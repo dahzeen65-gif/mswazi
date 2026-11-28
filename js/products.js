@@ -193,3 +193,58 @@ export async function addProductToCart({ product, vendor, quantity = 1 }) {
     }
   }
 }
+export async function addProductToCart({ product, vendor, quantity = 1 }) {
+  const qty = Math.max(1, Number(quantity) || 1);
+  const mediaList = Array.isArray(product.media) ? product.media : [];
+  const primaryImageUrl =
+    mediaList.find((m) => m.type === "image")?.url ||
+    mediaList[0]?.url ||
+    product.image_url ||
+    null;
+
+  const localItems = readLocalCart();
+  const existing = localItems.find((i) => i.product_id === product.id);
+
+  if (existing) {
+    existing.quantity += qty;
+    if (!existing.media_url && primaryImageUrl) {
+      existing.media_url = primaryImageUrl;
+    }
+  } else {
+    localItems.push({
+      product_id: product.id,
+      product_name: product.name,
+      price_kes: Number(product.price_kes),
+      unit_label: product.unit_label || "unit",
+      vendor_id: vendor?.id || product.vendor_id,
+      vendor_name: vendor?.business_name || "MSWAZI Stall",
+      media_url: primaryImageUrl,
+      quantity: qty
+    });
+  }
+  writeLocalCart(localItems);
+
+  const { user } = await getCurrentUserContext();
+  if (user) {
+    const { data: dbRow } = await supabase
+      .from("cart_items")
+      .select("id, quantity")
+      .eq("user_id", user.id)
+      .eq("product_id", product.id)
+      .maybeSingle();
+
+    if (dbRow) {
+      await supabase
+        .from("cart_items")
+        .update({ quantity: Number(dbRow.quantity || 0) + qty })
+        .eq("id", dbRow.id);
+    } else {
+      await supabase.from("cart_items").insert({
+        user_id: user.id,
+        product_id: product.id,
+        vendor_id: vendor?.id || product.vendor_id,
+        quantity: qty
+      });
+    }
+  }
+}
