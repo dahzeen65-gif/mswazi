@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MSWAZI — Every Stall Has a Story. Every Business Has a Place.</title>
+  <link rel="icon" type="image/png" href="./assets/mswazi-mark.png" />
+  <link rel="apple-touch-icon" href="./assets/mswazi-mark.png" />
   <link rel="stylesheet" href="./css/style.css" />
   <link rel="stylesheet" href="./css/components.css" />
   <style>
@@ -52,14 +54,9 @@
       width: 36px;
       height: 36px;
       border-radius: 10px;
-      background: var(--navy-900);
-      color: var(--amber-500);
-      border: 2px solid var(--amber-500);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 800;
-      font-size: 1.05rem;
+      object-fit: cover;
+      display: block;
+      border: 1px solid var(--amber-500);
     }
     .brand-title { font-weight: 800; font-size: 1.08rem; letter-spacing: 0.04em; line-height: 1.1; }
     .brand-sub { font-size: 0.68rem; color: var(--muted); font-weight: 600; }
@@ -236,7 +233,7 @@
       <div class="topbar-left">
         <button class="icon-btn" id="openDrawerBtn" aria-label="Open menu">☰</button>
         <a href="./index.html" class="brand">
-          <div class="brand-mark">M</div>
+          <img class="brand-mark" src="./assets/mswazi-mark.png" alt="" />
           <div>
             <div class="brand-title">MSWAZI</div>
             <div class="brand-sub">Every Stall Has a Story</div>
@@ -387,7 +384,7 @@
     <div class="container footer-grid">
       <div>
         <div class="brand" style="margin-bottom:0.5rem;">
-          <div class="brand-mark">M</div>
+          <img class="brand-mark" src="./assets/mswazi-mark.png" alt="" />
           <div>
             <div class="brand-title">MSWAZI</div>
             <div class="brand-sub">Neighbourhood Marketplace</div>

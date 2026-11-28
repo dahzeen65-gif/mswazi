@@ -101,3 +101,14 @@ export function resolveHref(targetPath) {
   }
   return `./${clean}`;
 }
+export function applyMswaziBrandMark(basePrefix = "..") {
+  const markUrl = `${basePrefix}/assets/mswazi-mark.png`;
+  let link = document.querySelector("link[rel='icon']");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    link.type = "image/png";
+    document.head.appendChild(link);
+  }
+  link.href = markUrl;
+}

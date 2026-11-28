@@ -1,4 +1,22 @@
 /* css/components.css — Shared buttons, cards, badges & inputs */
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.brand-mark img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: block;
+}
+
 .btn {
   border: none;
   border-radius: var(--radius-pill);
