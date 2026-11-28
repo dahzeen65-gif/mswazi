@@ -287,3 +287,54 @@ export async function updateVendorSubscriptionPlan(vendorId, { planTier, billing
     throw new Error(error.message || "Could not update stall subscription plan.");
   }
 }
+const byId = await supabase
+  .from("vendors")
+  .select("*")
+  .eq("id", identifier)
+  .maybeSingle();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function fetchVendorByIdOrSlug(identifier) {
+  const clean = String(identifier || "").trim();
+  if (!clean) return null;
+
+  try {
+    if (UUID_RE.test(clean)) {
+      const byId = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("id", clean)
+        .maybeSingle();
+
+      if (byId.error) throw byId.error;
+      if (byId.data) return byId.data;
+    }
+
+    const bySlug = await supabase
+      .from("vendors")
+      .select("*")
+      .eq("slug", clean)
+      .maybeSingle();
+
+    if (bySlug.error) throw bySlug.error;
+    if (bySlug.data) return bySlug.data;
+
+    if (UUID_RE.test(clean)) {
+      const byOwner = await supabase
+        .from("vendors")
+        .select("*")
+        .eq("owner_id", clean)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (byOwner.error) throw byOwner.error;
+      if (byOwner.data) return byOwner.data;
+    }
+  } catch (err) {
+    console.warn("fetchVendorByIdOrSlug lookup error:", err?.message || err);
+  }
+
+  if (!MSWAZI_CONFIG.demoMode) return null;
+  return DEMO_VENDORS.find((v) => v.id === clean || v.slug === clean) || null;
+}

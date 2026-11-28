@@ -137,6 +137,8 @@
     import { fetchVendorByIdOrSlug } from "../js/vendors.js";
     import { fetchProductsByVendor, addProductToCart } from "../js/products.js";
 
+    const LOAD_TIMEOUT_MS = 8000;
+
     document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("storeCurrencySelect");
     document.getElementById("storeCurrencySelect").addEventListener("change", (e) => {
       setSelectedCurrencyCode(e.target.value);
@@ -145,9 +147,18 @@
 
     const params = new URLSearchParams(window.location.search);
     const identifier = params.get("vendor");
-    const vendor = await fetchVendorByIdOrSlug(identifier);
 
+    let vendor = null;
     let products = [];
+
+    function withTimeout(promise, ms = LOAD_TIMEOUT_MS) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("Request timed out while loading stall data.")), ms)
+        )
+      ]);
+    }
 
     function sortProductsByVendorArrangement(list) {
       return [...list].sort((a, b) => {
@@ -192,21 +203,17 @@
       }
     }
 
-    if (!vendor) {
-      document.getElementById("stallName").textContent = "Stall Not Found";
-      document.getElementById("productsContainer").innerHTML = `<div class="card product-card" style="grid-column:1/-1;"><strong>Stall unavailable</strong><span class="prod-desc">Return to <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Stalls</a> to browse approved shops.</span></div>`;
-    } else {
-      document.title = `${vendor.business_name} — MSWAZI`;
-      document.getElementById("stallCategoryBadge").textContent = vendor.category || "Stall";
-      document.getElementById("stallName").textContent = vendor.business_name;
-      document.getElementById("stallDesc").textContent = vendor.description || "Independent neighbourhood stall.";
-      document.getElementById("stallMeta").textContent = `Area: ${vendor.area_slug} · Hours: ${vendor.opening_hours || "Daily"} · ${vendor.is_open === false ? "Currently Closed" : "Open"}`;
-
-      setupStallMapLink(vendor);
-      renderStallHeroMedia(vendor);
-      const rawProducts = await fetchProductsByVendor(vendor.id);
-      products = sortProductsByVendorArrangement(rawProducts);
-      renderProducts();
+    function showStallMissing(message = "Stall Not Found", detail = "Return to Stalls to browse approved shops.") {
+      document.title = `${message} — MSWAZI`;
+      document.getElementById("stallName").textContent = message;
+      document.getElementById("stallDesc").textContent = "";
+      document.getElementById("stallMeta").textContent = "";
+      document.getElementById("productsContainer").innerHTML = `
+        <div class="card product-card" style="grid-column:1/-1;">
+          <strong>${message}</strong>
+          <span class="prod-desc">${detail} <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Browse Stalls →</a></span>
+        </div>
+      `;
     }
 
     window.addItem = async (productId) => {
@@ -314,6 +321,39 @@
         })
         .join("");
     }
+
+    async function initStorefront() {
+      if (!identifier) {
+        showStallMissing("No Stall Selected", "Open a stall from the directory to view its items.");
+        return;
+      }
+
+      try {
+        const fetchedVendor = await withTimeout(fetchVendorByIdOrSlug(identifier));
+        if (!fetchedVendor) {
+          showStallMissing("Stall Not Found", "This stall may be unapproved or no longer exists.");
+          return;
+        }
+
+        vendor = fetchedVendor;
+        document.title = `${vendor.business_name} — MSWAZI`;
+        document.getElementById("stallCategoryBadge").textContent = vendor.category || "Stall";
+        document.getElementById("stallName").textContent = vendor.business_name;
+        document.getElementById("stallDesc").textContent = vendor.description || "Independent neighbourhood stall.";
+        document.getElementById("stallMeta").textContent = `Area: ${vendor.area_slug} · Hours: ${vendor.opening_hours || "Daily"} · ${vendor.is_open === false ? "Currently Closed" : "Open"}`;
+
+        setupStallMapLink(vendor);
+        renderStallHeroMedia(vendor);
+
+        const rawProducts = await withTimeout(fetchProductsByVendor(vendor.id));
+        products = sortProductsByVendorArrangement(Array.isArray(rawProducts) ? rawProducts : []);
+        renderProducts();
+      } catch (err) {
+        showStallMissing("Unable to Load Stall", err?.message || "Please check your connection and try again.");
+      }
+    }
+
+    initStorefront();
   </script>
 </body>
 </html>

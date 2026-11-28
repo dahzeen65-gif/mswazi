@@ -17,7 +17,15 @@
     .nav-links a.active { background: var(--amber-500); color: #fff; }
     .order-card { padding: 1.15rem; margin-bottom: 1rem; }
     .ref-row { display: flex; gap: 0.45rem; margin-top: 0.55rem; flex-wrap: wrap; align-items: center; }
-    .dispatch-meta { font-size: 0.76rem; color: var(--navy-900); background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.6rem; margin-top: 0.45rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .dispatch-meta { font-size: 0.76rem; color: var(--navy-900); background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 0.45rem 0.65rem; margin-top: 0.45rem; display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .live-sync-pill { font-size: 0.74rem; font-weight: 700; color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; padding: 0.2rem 0.6rem; border-radius: 999px; }
+
+    /* Collapsible Live Rider Mini-Map */
+    .mini-map-card { padding: 0.95rem 1.1rem; margin-bottom: 1.1rem; display: none; }
+    .mini-map-card.open { display: block; }
+    .mini-map-header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+    .mini-map-canvas { height: 240px; width: 100%; border-radius: 12px; overflow: hidden; z-index: 1; }
+    .btn-xs { padding: 0.28rem 0.6rem; font-size: 0.74rem; }
   </style>
 </head>
 <body>
@@ -40,17 +48,41 @@
     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem; margin-bottom:1.1rem;">
       <div>
         <h1 style="font-size:1.5rem; font-weight:800; color:var(--navy-900);">My Orders &amp; Direct Stall Payments</h1>
-        <p style="font-size:0.85rem; color:var(--muted);">Pay each vendor directly, log your M-Pesa confirmation code, and track rider dispatch.</p>
+        <p style="font-size:0.85rem; color:var(--muted);">Pay each vendor directly, log your M-Pesa confirmation code, and track live rider dispatch.</p>
       </div>
-      <span id="currencyMount"></span>
+      <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+        <span class="live-sync-pill" id="liveSyncBadge">● Live Updates On</span>
+        <span id="currencyMount"></span>
+      </div>
     </div>
+
+    <section class="card mini-map-card" id="miniMapCard" aria-label="Live Rider Mini-Map">
+      <div class="mini-map-header">
+        <div>
+          <strong style="font-size:0.92rem; color:var(--navy-900);" id="miniMapTitle">Live Rider Location</strong>
+          <div style="font-size:0.75rem; color:var(--muted);" id="miniMapCoords">Waiting for live GPS ping...</div>
+        </div>
+        <div style="display:flex; gap:0.4rem; align-items:center;">
+          <button type="button" class="btn btn-outline btn-xs" id="centerRiderBtn">Center Pin</button>
+          <button type="button" class="btn btn-outline btn-xs" id="collapseMiniMapBtn">Hide Map</button>
+        </div>
+      </div>
+      <div id="riderMiniMap" class="mini-map-canvas"></div>
+    </section>
 
     <div id="ordersList"></div>
   </main>
 
   <script type="module">
+    import { supabase } from "../js/supabase.js";
     import { formatKES, showToast, buildCurrencySelectorHtml, setSelectedCurrencyCode } from "../js/app.js";
-    import { fetchCustomerOrders, submitSubOrderPaymentProof, toggleOrderRunningLate } from "../js/orders.js";
+    import {
+      fetchCustomerOrders,
+      submitSubOrderPaymentProof,
+      toggleOrderRunningLate,
+      subscribeToOrderUpdates
+    } from "../js/orders.js";
+    import { createMswaziMap } from "../js/map.js";
 
     const CHANNEL_LABELS = {
       MPESA_SEND: "M-Pesa Send Money",
@@ -67,11 +99,102 @@
       DELIVERED: "Delivered"
     };
 
+    const TRACKABLE_STATUSES = new Set(["PICKED_UP", "IN_TRANSIT"]);
+
     document.getElementById("currencyMount").innerHTML = buildCurrencySelectorHtml("ordersCurrencySelect");
     document.getElementById("ordersCurrencySelect").addEventListener("change", (e) => {
       setSelectedCurrencyCode(e.target.value);
       renderOrders();
     });
+
+    const miniMapCard = document.getElementById("miniMapCard");
+    const miniMapTitle = document.getElementById("miniMapTitle");
+    const miniMapCoords = document.getElementById("miniMapCoords");
+    const collapseMiniMapBtn = document.getElementById("collapseMiniMapBtn");
+    const centerRiderBtn = document.getElementById("centerRiderBtn");
+
+    let miniMapInstance = null;
+    let unsubscribeRiderMap = null;
+    let trackedRiderId = null;
+    let trackedRiderLabel = "Assigned Rider";
+    const latestRiderPings = new Map();
+
+    function updateMiniMapReadout(riderId) {
+      const ping = latestRiderPings.get(riderId);
+      if (!ping) {
+        miniMapCoords.textContent = `Tracking ${trackedRiderLabel} — waiting for active GPS ping...`;
+        return;
+      }
+      const timeLabel = ping.updated_at ? new Date(ping.updated_at).toLocaleTimeString() : "live";
+      miniMapCoords.textContent = `${trackedRiderLabel}: ${Number(ping.lat).toFixed(5)}, ${Number(ping.lng).toFixed(5)} (${timeLabel})`;
+    }
+
+    function focusTrackedRider(animate = true) {
+      if (!miniMapInstance || !trackedRiderId) return;
+      const ping = latestRiderPings.get(trackedRiderId);
+      if (ping && Number.isFinite(Number(ping.lat)) && Number.isFinite(Number(ping.lng))) {
+        miniMapInstance.map.setView([Number(ping.lat), Number(ping.lng)], 15, { animate });
+      }
+    }
+
+    async function ensureMiniMapReady() {
+      if (miniMapInstance) {
+        setTimeout(() => miniMapInstance.map.invalidateSize(), 60);
+        return;
+      }
+
+      miniMapInstance = await createMswaziMap("riderMiniMap");
+      const { data } = await supabase.from("rider_locations").select("*");
+      if (Array.isArray(data)) {
+        data.forEach((row) => {
+          const key = row.trusted_rider_id || row.id;
+          if (key) latestRiderPings.set(key, row);
+          miniMapInstance.upsertRiderPing(row);
+        });
+      }
+
+      unsubscribeRiderMap = miniMapInstance.subscribeRealtime({
+        onRiderPing: (ping) => {
+          const key = ping.trusted_rider_id || ping.id;
+          if (key) latestRiderPings.set(key, ping);
+          if (trackedRiderId && key === trackedRiderId) {
+            updateMiniMapReadout(trackedRiderId);
+            focusTrackedRider(true);
+          }
+        }
+      });
+
+      setTimeout(() => miniMapInstance.map.invalidateSize(), 80);
+    }
+
+    collapseMiniMapBtn.addEventListener("click", () => {
+      miniMapCard.classList.remove("open");
+    });
+
+    centerRiderBtn.addEventListener("click", () => {
+      focusTrackedRider(true);
+    });
+
+    window.toggleRiderMiniMap = async (riderId, riderLabelEncoded, stallNameEncoded) => {
+      const riderLabel = decodeURIComponent(riderLabelEncoded || "Assigned Rider");
+      const stallName = decodeURIComponent(stallNameEncoded || "Sub-Order");
+
+      const isSameRiderAlreadyOpen = miniMapCard.classList.contains("open") && trackedRiderId === riderId;
+      if (isSameRiderAlreadyOpen) {
+        miniMapCard.classList.remove("open");
+        return;
+      }
+
+      trackedRiderId = riderId;
+      trackedRiderLabel = riderLabel;
+      miniMapTitle.textContent = `Live Rider — ${riderLabel} (${stallName})`;
+      miniMapCard.classList.add("open");
+      miniMapCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+      await ensureMiniMapReady();
+      updateMiniMapReadout(riderId);
+      focusTrackedRider(false);
+    };
 
     window.submitProof = async (subOrderId) => {
       const input = document.getElementById(`ref-${subOrderId}`);
@@ -97,114 +220,160 @@
     };
 
     function getDeliverySummary(vo) {
-      const legs = Array.isArray(vo.deliveryies) 
+      const deliveries = Array.isArray(vo.deliveries)
         ? vo.deliveries
         : vo.deliveries
           ? [vo.deliveries]
           : [];
-      const leg = legs[0];
+      const leg = deliveries[0];
       if (!leg) return null;
 
+      const riderId = leg.trusted_rider_id || leg.trusted_riders?.id || "";
       const riderLabel =
         leg.trusted_riders?.rider_label ||
         leg.rider_label ||
-        (leg.trusted_rider_id ? "Assigned Rider" : "Unassigned");
+        (riderId ? "Assigned Rider" : "Unassigned");
+      const vehicleType = leg.trusted_riders?.vehicle_type || "";
       const statusCode = leg.status || "AWAITING_ASSIGNMENT";
       const statusText = DELIVERY_LABELS[statusCode] || statusCode;
+      const canTrackLive = Boolean(riderId) && TRACKABLE_STATUSES.has(statusCode);
 
-      return { riderLabel, statusCode, statusText };
+      return { riderId, riderLabel, vehicleType, statusCode, statusText, canTrackLive };
     }
+
+    let isRendering = false;
+    let queuedRender = false;
 
     async function renderOrders() {
-      const listEl = document.getElementById("ordersList");
-      const orders = await fetchCustomerOrders();
-
-      if (!orders.length) {
-        listEl.innerHTML = `<div class="card order-card"><strong>No orders found yet</strong><p style="font-size:0.84rem; color:var(--muted); margin-top:0.35rem;">Sign in and place an order from <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Stalls</a> to track vendor sub-orders here.</p></div>`;
+      if (isRendering) {
+        queuedRender = true;
         return;
       }
+      isRendering = true;
 
-      listEl.innerHTML = orders
-        .map((ord) => {
-          const subOrders = Array.isArray(ord.vendor_orders) ? ord.vendor_orders : [];
-          return `
-            <article class="card order-card">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
-                <div>
-                  <strong style="font-size:1rem; color:var(--navy-900);">Order #${String(ord.id).slice(0, 8)}</strong>
-                  <div style="font-size:0.78rem; color:var(--muted);">${ord.area_slug} · ${ord.delivery_address} · ${ord.payment_method}</div>
+      try {
+        const listEl = document.getElementById("ordersList");
+        const orders = await fetchCustomerOrders();
+
+        if (!orders.length) {
+          listEl.innerHTML = `<div class="card order-card"><strong>No orders found yet</strong><p style="font-size:0.84rem; color:var(--muted); margin-top:0.35rem;">Sign in and place an order from <a href="./stalls.html" style="color:var(--amber-600); font-weight:700;">Stalls</a> to track vendor sub-orders here.</p></div>`;
+          return;
+        }
+
+        const draftRefs = new Map();
+        document.querySelectorAll('input[id^="ref-"]').forEach((el) => {
+          if (!el.disabled && el.value) {
+            draftRefs.set(el.id, el.value);
+          }
+        });
+
+        listEl.innerHTML = orders
+          .map((ord) => {
+            const subOrders = Array.isArray(ord.vendor_orders) ? ord.vendor_orders : [];
+            return `
+              <article class="card order-card">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.75rem; flex-wrap:wrap;">
+                  <div>
+                    <strong style="font-size:1rem; color:var(--navy-900);">Order #${String(ord.id).slice(0, 8)}</strong>
+                    <div style="font-size:0.78rem; color:var(--muted);">${ord.area_slug} · ${ord.delivery_address} · ${ord.payment_method}</div>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                    ${ord.running_late ? `<span class="badge late-pill">Running Late</span>` : ""}
+                    <strong style="font-size:1rem; color:var(--navy-900);">${formatKES(ord.total_kes)}</strong>
+                  </div>
                 </div>
-                <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                  ${ord.running_late ? `<span class="badge late-pill">Running Late</span>` : ""}
-                  <strong style="font-size:1rem; color:var(--navy-900);">${formatKES(ord.total_kes)}</strong>
-                </div>
-              </div>
 
-              ${ord.hold_note ? `<div style="font-size:0.78rem; color:#991b1b; margin-top:0.4rem;">Note: ${ord.hold_note}</div>` : ""}
+                ${ord.hold_note ? `<div style="font-size:0.78rem; color:#991b1b; margin-top:0.4rem;">Note: ${ord.hold_note}</div>` : ""}
 
-              <div style="margin-top:0.65rem;">
-                ${subOrders
-                  .map((vo) => {
-                    const v = vo.vendors || {};
-                    const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
-                    const refLabel = v.payment_account_ref ? `${channel}: ${v.payment_account_ref}` : channel;
-                    const isConfirmed = vo.payment_status === "PAID_CONFIRMED";
-                    const deliv = getDeliverySummary(vo);
+                <div style="margin-top:0.65rem;">
+                  ${subOrders
+                    .map((vo) => {
+                      const v = vo.vendors || {};
+                      const stallName = v.business_name || "Vendor Stall";
+                      const channel = CHANNEL_LABELS[v.payment_channel] || "Direct Stall Account";
+                      const refLabel = v.payment_account_ref ? `${channel}: ${v.payment_account_ref}` : channel;
+                      const isConfirmed = vo.payment_status === "PAID_CONFIRMED";
+                      const deliv = getDeliverySummary(vo);
+                      const inputId = `ref-${vo.id}`;
+                      const inputValue = draftRefs.get(inputId) ?? vo.payment_reference ?? "";
 
-                    return `
-                      <div class="suborder-card">
-                        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
-                          <div>
-                            <strong style="font-size:0.9rem; color:var(--navy-900);">${v.business_name || "Vendor Stall"}</strong>
-                            <div style="font-size:0.76rem; color:var(--muted);">Subtotal: ${formatKES(vo.subtotal_kes)} · Fulfillment: ${vo.status}</div>
-                            <div style="font-size:0.76rem; color:var(--navy-800); margin-top:0.2rem;">Direct Pay: <strong>${refLabel}</strong>${v.payment_account_name ? ` (${v.payment_account_name})` : ""}</div>
-                          </div>
-                          <span class="badge ${isConfirmed ? "badge-active" : ""}">${vo.payment_status || "UNPAID"}</span>
-                        </div>
-
-                        ${
-                          deliv
-                            ? `
-                            <div class="dispatch-meta">
-                              <span>Rider: <strong>${deliv.riderLabel}</strong></span>
-                              <span class="badge ${deliv.statusCode === "DELIVERED" ? "badge-active" : ""}">${deliv.statusText}</span>
+                      return `
+                        <div class="suborder-card">
+                          <div style="display:flex; justify-content:space-between; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                            <div>
+                              <strong style="font-size:0.9rem; color:var(--navy-900);">${stallName}</strong>
+                              <div style="font-size:0.76rem; color:var(--muted);">Subtotal: ${formatKES(vo.subtotal_kes)} · Fulfillment: ${vo.status}</div>
+                              <div style="font-size:0.76rem; color:var(--navy-800); margin-top:0.2rem;">Direct Pay: <strong>${refLabel}</strong>${v.payment_account_name ? ` (${v.payment_account_name})` : ""}</div>
                             </div>
-                          `
-                            : ""
-                        }
+                            <span class="badge ${isConfirmed ? "badge-active" : ""}">${vo.payment_status || "UNPAID"}</span>
+                          </div>
 
-                        <div class="ref-row">
-                          <input
-                            class="field"
-                            style="max-width:220px;"
-                            id="ref-${vo.id}"
-                            type="text"
-                            value="${vo.payment_reference || ""}"
-                            placeholder="M-Pesa code (e.g. TKL89ABC12)"
-                            ${isConfirmed ? "disabled" : ""}
-                          />
                           ${
-                            isConfirmed
-                              ? `<span style="font-size:0.78rem; color:#166534; font-weight:700;">Confirmed by stall</span>`
-                              : `<button class="btn btn-amber" onclick="submitProof('${vo.id}')">Submit Payment Code</button>`
+                            deliv
+                              ? `
+                              <div class="dispatch-meta">
+                                <span>Rider: <strong>${deliv.riderLabel}</strong>${deliv.vehicleType ? ` · ${deliv.vehicleType}` : ""}</span>
+                                <div style="display:flex; align-items:center; gap:0.4rem; flex-wrap:wrap;">
+                                  ${
+                                    deliv.canTrackLive
+                                      ? `<button type="button" class="btn btn-amber btn-xs" onclick="toggleRiderMiniMap('${deliv.riderId}', '${encodeURIComponent(deliv.riderLabel)}', '${encodeURIComponent(stallName)}')">Track Live Rider</button>`
+                                      : ""
+                                  }
+                                  <span class="badge ${deliv.statusCode === "DELIVERED" ? "badge-active" : ""}">${deliv.statusText}</span>
+                                </div>
+                              </div>
+                            `
+                              : ""
                           }
-                        </div>
-                      </div>
-                    `;
-                  })
-                  .join("")}
-              </div>
 
-              <div style="margin-top:0.8rem; display:flex; justify-content:flex-end;">
-                <button class="btn btn-outline" onclick="markRunningLate('${ord.id}', ${!ord.running_late})">
-                  ${ord.running_late ? "I've Arrived / Clear Late" : "Running Late?"}
-                </button>
-              </div>
-            </article>
-          `;
-        })
-        .join("");
+                          <div class="ref-row">
+                            <input
+                              class="field"
+                              style="max-width:220px;"
+                              id="${inputId}"
+                              type="text"
+                              value="${inputValue}"
+                              placeholder="M-Pesa code (e.g. TKL89ABC12)"
+                              ${isConfirmed ? "disabled" : ""}
+                            />
+                            ${
+                              isConfirmed
+                                ? `<span style="font-size:0.78rem; color:#166534; font-weight:700;">Confirmed by stall</span>`
+                                : `<button class="btn btn-amber" onclick="submitProof('${vo.id}')">Submit Payment Code</button>`
+                            }
+                          </div>
+                        </div>
+                      `;
+                    })
+                    .join("")}
+                </div>
+
+                <div style="margin-top:0.8rem; display:flex; justify-content:flex-end;">
+                  <button class="btn btn-outline" onclick="markRunningLate('${ord.id}', ${!ord.running_late})">
+                    ${ord.running_late ? "I've Arrived / Clear Late" : "Running Late?"}
+                  </button>
+                </div>
+              </article>
+            `;
+          })
+          .join("");
+      } finally {
+        isRendering = false;
+        if (queuedRender) {
+          queuedRender = false;
+          renderOrders();
+        }
+      }
     }
+
+    const unsubscribeOrders = subscribeToOrderUpdates(() => {
+      renderOrders();
+    });
+
+    window.addEventListener("beforeunload", () => {
+      if (typeof unsubscribeOrders === "function") unsubscribeOrders();
+      if (typeof unsubscribeRiderMap === "function") unsubscribeRiderMap();
+    });
 
     renderOrders();
   </script>
